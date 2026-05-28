@@ -6,6 +6,8 @@ struct NowPlayingView: View {
     @State private var isDraggingSeekBar = false
     @State private var seekPosition: Double = 0
     @State private var showQueue = false
+    @State private var showSleepTimerSheet = false
+    @State private var sleepTimerManager = SleepTimerManager.shared
 
     private var song: Song? { playerVM.currentSong }
 
@@ -166,7 +168,7 @@ struct NowPlayingView: View {
 
                 Spacer()
 
-                // Bottom row: heart + volume + queue
+                // Bottom row: heart + volume + sleep timer + queue
                 HStack(spacing: 16) {
                     Button {
                         playerVM.toggleFavorite()
@@ -189,6 +191,21 @@ struct NowPlayingView: View {
                             .foregroundColor(.lucidGray)
                     }
 
+                    Button {
+                        showSleepTimerSheet = true
+                    } label: {
+                        HStack(spacing: 4) {
+                            Image(systemName: sleepTimerManager.isActive ? "moon.fill" : "moon")
+                                .font(.system(size: 22))
+                            if sleepTimerManager.isActive {
+                                Text(sleepTimerManager.remainingFormatted)
+                                    .font(.system(size: 12, weight: .semibold))
+                                    .monospacedDigit()
+                            }
+                        }
+                        .foregroundColor(sleepTimerManager.isActive ? .lucidGreen : .lucidGray)
+                    }
+
                     // Queue button
                     Button {
                         showQueue = true
@@ -205,6 +222,9 @@ struct NowPlayingView: View {
         .sheet(isPresented: $showQueue) {
             QueueSheetView()
                 .environmentObject(playerVM)
+        }
+        .sheet(isPresented: $showSleepTimerSheet) {
+            SleepTimerSheet()
         }
     }
 

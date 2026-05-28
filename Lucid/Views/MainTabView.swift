@@ -1,8 +1,11 @@
 import SwiftUI
+import SwiftData
 
 struct MainTabView: View {
     @EnvironmentObject var playerVM: PlayerViewModel
+    @Environment(\.modelContext) private var modelContext
     @State private var selectedTab = 0
+    @State private var didRestorePlayback = false
 
     var body: some View {
         ZStack(alignment: .bottom) {
@@ -37,6 +40,39 @@ struct MainTabView: View {
         }
         .sheet(isPresented: $playerVM.showNowPlaying) {
             NowPlayingView()
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .playbackStateDidChange)) { notification in
+            if let state = notification.object as? PlaybackState {
+                QueuePersistence.shared.save(state)
+            }
+        }
+        .onAppear {
+            restorePlaybackIfNeeded()
+        }
+    }
+
+    private func restorePlaybackIfNeeded() {
+        guard !didRestorePlayback else { return }
+        didRestorePlayback = true
+
+        guard let state = QueuePersistence.shared.load(),
+              let currentSongID = state.currentSongID else {
+            return
+        }
+
+        do {
+            let songs = try modelContext.fetch(FetchDescriptor<Song>())
+            let songsByID = Dictionary(uniqueKeysWithValues: songs.map { ($0.id, $0) })
+            guard let currentSong = songsByID[currentSongID] else { return }
+            let queue = state.queueSongIDs.compactMap { songsByID[$0] }
+            playerVM.restorePlayback(
+                currentSong: currentSong,
+                queue: queue,
+                queueIndex: state.queueIndex,
+                state: state
+            )
+        } catch {
+            print("Failed to restore playback state: \(error)")
         }
     }
 }

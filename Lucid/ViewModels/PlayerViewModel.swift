@@ -25,6 +25,8 @@ class PlayerViewModel: ObservableObject {
     private var queue: [Song] = []
     private var queueIndex: Int = 0
     private var originalQueue: [Song] = []
+    private var lastSaveTime: Date = .distantPast
+    private var isRestoringPlaybackState = false
 
     var progress: Double {
         guard duration > 0 else { return 0 }
@@ -86,6 +88,14 @@ class PlayerViewModel: ObservableObject {
         ) { [weak self] notification in
             self?.handleInterruption(notification)
         }
+
+        NotificationCenter.default.addObserver(
+            forName: .sleepTimerExpired,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            self?.stop()
+        }
     }
 
     private func handleInterruption(_ notification: Notification) {
@@ -134,6 +144,7 @@ class PlayerViewModel: ObservableObject {
         queue.insert(song, at: insertionIndex)
         originalQueue = queue
         syncQueueDisplayState()
+        postPlaybackStateNotification()
     }
 
     func togglePlayPause() {
@@ -149,6 +160,7 @@ class PlayerViewModel: ObservableObject {
         isPlaying = true
         updateNowPlayingInfo()
         startDisplayLink()
+        postPlaybackStateNotification()
     }
 
     func pause() {
@@ -156,6 +168,7 @@ class PlayerViewModel: ObservableObject {
         isPlaying = false
         updateNowPlayingInfo()
         stopDisplayLink()
+        postPlaybackStateNotification()
     }
 
     func stop() {
@@ -173,6 +186,7 @@ class PlayerViewModel: ObservableObject {
         originalQueue = []
         showNowPlaying = false
         syncQueueDisplayState()
+        postPlaybackStateNotification()
     }
 
     func next() {
@@ -201,6 +215,7 @@ class PlayerViewModel: ObservableObject {
         player?.currentTime = time
         currentTime = time
         updateNowPlayingInfo()
+        postPlaybackStateNotification(rateLimited: true)
     }
 
     func toggleShuffle() {
@@ -221,6 +236,7 @@ class PlayerViewModel: ObservableObject {
             }
         }
         syncQueueDisplayState()
+        postPlaybackStateNotification()
     }
 
     func cycleRepeatMode() {
@@ -229,10 +245,38 @@ class PlayerViewModel: ObservableObject {
         case .all: repeatMode = .one
         case .one: repeatMode = .off
         }
+        postPlaybackStateNotification()
     }
 
     func toggleFavorite() {
         currentSong?.isFavorite.toggle()
+    }
+
+    func restorePlayback(currentSong: Song?, queue restoredQueue: [Song], queueIndex restoredQueueIndex: Int, state: PlaybackState) {
+        guard let currentSong else { return }
+
+        isRestoringPlaybackState = true
+        var restoredQueue = restoredQueue
+        if !restoredQueue.contains(where: { $0.id == currentSong.id }) {
+            restoredQueue.insert(currentSong, at: min(restoredQueueIndex, restoredQueue.count))
+        }
+
+        queue = restoredQueue
+        originalQueue = restoredQueue
+        queueIndex = min(max(restoredQueueIndex, 0), max(restoredQueue.count - 1, 0))
+        isShuffled = state.isShuffled
+        repeatMode = repeatMode(from: state.repeatModeRaw)
+        syncQueueDisplayState()
+
+        loadAndPlay(currentSong)
+        seek(to: state.currentTime)
+        if state.isPlaying {
+            play()
+        } else {
+            pause()
+        }
+        showNowPlaying = false
+        isRestoringPlaybackState = false
     }
 
     // MARK: - Private
@@ -276,6 +320,44 @@ class PlayerViewModel: ObservableObject {
         queueCount = queue.count
         currentQueueIndex = queueIndex
         queueItems = queue
+    }
+
+    private func repeatMode(from rawValue: String) -> RepeatMode {
+        switch rawValue {
+        case "all": return .all
+        case "one": return .one
+        default: return .off
+        }
+    }
+
+    private var repeatModeSerialized: String {
+        switch repeatMode {
+        case .off: return "off"
+        case .all: return "all"
+        case .one: return "one"
+        }
+    }
+
+    private func postPlaybackStateNotification(rateLimited: Bool = false) {
+        guard !isRestoringPlaybackState else { return }
+        if rateLimited {
+            let now = Date()
+            guard now.timeIntervalSince(lastSaveTime) >= 5 else { return }
+            lastSaveTime = now
+        } else {
+            lastSaveTime = Date()
+        }
+
+        let state = PlaybackState(
+            currentSongID: currentSong?.id,
+            queueSongIDs: queue.map(\.id),
+            queueIndex: queueIndex,
+            currentTime: currentTime,
+            isShuffled: isShuffled,
+            repeatModeRaw: repeatModeSerialized,
+            isPlaying: isPlaying
+        )
+        NotificationCenter.default.post(name: .playbackStateDidChange, object: state)
     }
 
     private func startDisplayLink() {
