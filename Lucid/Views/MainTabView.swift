@@ -22,11 +22,17 @@ struct MainTabView: View {
                     }
                     .tag(1)
 
+                RadioView()
+                    .tabItem {
+                        Label("Radio", systemImage: "globe")
+                    }
+                    .tag(2)
+
                 SearchView()
                     .tabItem {
                         Label("Search", systemImage: "magnifyingglass")
                     }
-                    .tag(2)
+                    .tag(3)
             }
             .tint(Color.lucidGreen)
 

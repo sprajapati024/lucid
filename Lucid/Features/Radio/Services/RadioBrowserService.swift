@@ -96,22 +96,32 @@ struct RadioBrowserCountry: Codable {
 
 @MainActor
 final class RadioBrowserService {
-    private let modelContext: ModelContext
+    static let shared = RadioBrowserService(modelContext: nil)
+
+    private let modelContext: ModelContext?
     private let session: URLSession
     private let baseURL = URL(string: "https://de1.api.radio-browser.info/json/")!
     private let decoder: JSONDecoder
     private var lastAPICallAt: Date?
 
-    init(modelContext: ModelContext, session: URLSession = .shared) {
+    init(modelContext: ModelContext?) {
         self.modelContext = modelContext
-        self.session = session
+        self.session = URLSession.shared
         decoder = JSONDecoder()
         decoder.keyDecodingStrategy = .convertFromSnakeCase
     }
 
+    func withContext(_ context: ModelContext) -> RadioBrowserService {
+        RadioBrowserService(modelContext: context)
+    }
+
     func fetchCountries() async throws -> [RadioCountry] {
-        let cached = try fetchCachedCountries()
-        if !cached.isEmpty, cached.allSatisfy({ !CacheExpiry.isExpired($0.cachedAt, for: .countries) }) {
+        guard let modelContext else {
+            throw RadioBrowserError.invalidResponse("No ModelContext available")
+        }
+
+        let cached = try fetchCachedCountries(context: modelContext)
+        if !cached.isEmpty, cached.first.map({ !CacheExpiry.isExpired($0.cachedAt, for: .countries) }) == true {
             return cached
         }
 
@@ -125,16 +135,20 @@ final class RadioBrowserService {
         let models = countries
             .filter { !$0.countryCode.isEmpty }
             .map { apiCountry in
-                upsertCountry(apiCountry, cachedAt: cachedAt)
+                upsertCountry(apiCountry, cachedAt: cachedAt, context: modelContext)
             }
 
-        try saveContext()
+        try saveContext(context: modelContext)
         return models.sorted { $0.countryName.localizedCaseInsensitiveCompare($1.countryName) == .orderedAscending }
     }
 
     func fetchStations(forCountryCode code: String, hideBroken: Bool = true) async throws -> [RadioStation] {
+        guard let modelContext else {
+            throw RadioBrowserError.invalidResponse("No ModelContext available")
+        }
+
         let normalizedCode = code.uppercased()
-        let cached = try fetchCachedStations(countryCode: normalizedCode)
+        let cached = try fetchCachedStations(countryCode: normalizedCode, context: modelContext)
 
         if !cached.isEmpty, cached.first.map({ !CacheExpiry.isExpired($0.cachedAt, for: .stations) }) == true {
             return cached
@@ -149,8 +163,8 @@ final class RadioBrowserService {
             throw RadioBrowserError.noResults
         }
 
-        let models = upsertStations(stations)
-        try saveContext()
+        let models = upsertStations(stations, context: modelContext)
+        try saveContext(context: modelContext)
         return models
     }
 
@@ -174,7 +188,11 @@ final class RadioBrowserService {
     }
 
     func getStation(uuid: String) async throws -> RadioStation {
-        if let cached = try fetchCachedStation(uuid: uuid),
+        guard let modelContext else {
+            throw RadioBrowserError.invalidResponse("No ModelContext available")
+        }
+
+        if let cached = try fetchCachedStation(uuid: uuid, context: modelContext),
            !CacheExpiry.isExpired(cached.cachedAt, for: .stations) {
             return cached
         }
@@ -184,8 +202,8 @@ final class RadioBrowserService {
             throw RadioBrowserError.noResults
         }
 
-        let model = upsertStation(station, cachedAt: Date())
-        try saveContext()
+        let model = upsertStation(station, cachedAt: Date(), context: modelContext)
+        try saveContext(context: modelContext)
         return model
     }
 
@@ -225,6 +243,10 @@ final class RadioBrowserService {
         }
 
         return models
+    }
+
+    func toggleFavorite(_ station: RadioStation) {
+        // TODO: Phase 3 — implement favorite toggle with SwiftData
     }
 
     private func request<T: Decodable>(
@@ -302,35 +324,35 @@ final class RadioBrowserService {
         return items
     }
 
-    private func fetchCachedCountries() throws -> [RadioCountry] {
+    private func fetchCachedCountries(context: ModelContext) throws -> [RadioCountry] {
         let descriptor = FetchDescriptor<RadioCountry>(
             sortBy: [SortDescriptor(\.countryName)]
         )
-        return try modelContext.fetch(descriptor)
+        return try context.fetch(descriptor)
     }
 
-    private func fetchCachedStations(countryCode: String) throws -> [RadioStation] {
+    private func fetchCachedStations(countryCode: String, context: ModelContext) throws -> [RadioStation] {
         let descriptor = FetchDescriptor<RadioStation>(
             predicate: #Predicate { station in
-                station.countryCode == countryCode && station.lastCheckOk
+                station.countryCode == countryCode
             },
             sortBy: [SortDescriptor(\.clickcount, order: .reverse)]
         )
-        return try modelContext.fetch(descriptor)
+        return try context.fetch(descriptor)
     }
 
-    private func fetchCachedStation(uuid: String) throws -> RadioStation? {
+    private func fetchCachedStation(uuid: String, context: ModelContext) throws -> RadioStation? {
         var descriptor = FetchDescriptor<RadioStation>(
             predicate: #Predicate { station in
                 station.stationuuid == uuid
             }
         )
         descriptor.fetchLimit = 1
-        return try modelContext.fetch(descriptor).first
+        return try context.fetch(descriptor).first
     }
 
-    private func upsertCountry(_ apiCountry: RadioBrowserCountry, cachedAt: Date) -> RadioCountry {
-        if let existing = try? fetchCachedCountry(countryCode: apiCountry.countryCode) {
+    private func upsertCountry(_ apiCountry: RadioBrowserCountry, cachedAt: Date, context: ModelContext) -> RadioCountry {
+        if let existing = try? fetchCachedCountry(countryCode: apiCountry.countryCode, context: context) {
             existing.countryName = apiCountry.countryName
             existing.stationCount = apiCountry.stationCount
             existing.cachedAt = cachedAt
@@ -343,39 +365,39 @@ final class RadioBrowserService {
             stationCount: apiCountry.stationCount,
             cachedAt: cachedAt
         )
-        modelContext.insert(country)
+        context.insert(country)
         return country
     }
 
-    private func fetchCachedCountry(countryCode: String) throws -> RadioCountry? {
+    private func fetchCachedCountry(countryCode: String, context: ModelContext) throws -> RadioCountry? {
         var descriptor = FetchDescriptor<RadioCountry>(
             predicate: #Predicate { country in
                 country.countryCode == countryCode
             }
         )
         descriptor.fetchLimit = 1
-        return try modelContext.fetch(descriptor).first
+        return try context.fetch(descriptor).first
     }
 
-    private func upsertStations(_ stations: [RadioBrowserStation]) -> [RadioStation] {
+    private func upsertStations(_ stations: [RadioBrowserStation], context: ModelContext) -> [RadioStation] {
         let cachedAt = Date()
-        return stations.map { upsertStation($0, cachedAt: cachedAt) }
+        return stations.map { upsertStation($0, cachedAt: cachedAt, context: context) }
     }
 
-    private func upsertStation(_ apiStation: RadioBrowserStation, cachedAt: Date) -> RadioStation {
-        if let existing = try? fetchCachedStation(uuid: apiStation.stationuuid) {
+    private func upsertStation(_ apiStation: RadioBrowserStation, cachedAt: Date, context: ModelContext) -> RadioStation {
+        if let existing = try? fetchCachedStation(uuid: apiStation.stationuuid, context: context) {
             existing.apply(apiStation, cachedAt: cachedAt)
             return existing
         }
 
         let station = apiStation.radioStation(cachedAt: cachedAt)
-        modelContext.insert(station)
+        context.insert(station)
         return station
     }
 
-    private func saveContext() throws {
+    private func saveContext(context: ModelContext) throws {
         do {
-            try modelContext.save()
+            try context.save()
         } catch {
             throw RadioBrowserError.invalidResponse("Failed to save radio cache: \(error.localizedDescription)")
         }
