@@ -11,6 +11,7 @@ struct RecentSheet: View {
     ) private var recentStations: [RadioStation]
 
     @Query(sort: \RadioCountry.countryName) private var countries: [RadioCountry]
+    @Query private var cachedStations: [RadioStation]
 
     @State private var selectedStationCountry: RecentStationCountrySelection?
 
@@ -28,11 +29,7 @@ struct RecentSheet: View {
         NavigationStack {
             Group {
                 if visibleRecentStations.isEmpty {
-                    EmptyStateView(
-                        icon: "clock.arrow.circlepath",
-                        title: "No Recent Stations",
-                        message: "Start listening to build your recent history"
-                    )
+                    emptyState
                 } else {
                     List(visibleRecentStations) { station in
                         StationRowView(station: station) {
@@ -63,6 +60,22 @@ struct RecentSheet: View {
         }
         .presentationDetents([.large])
         .presentationDragIndicator(.visible)
+    }
+
+    private var emptyState: some View {
+        if cachedStations.isEmpty {
+            EmptyStateView(
+                icon: "wifi.slash",
+                title: "You're Offline",
+                message: "Recently played stations will appear once stations have been cached on this device."
+            )
+        } else {
+            EmptyStateView(
+                icon: "clock.arrow.circlepath",
+                title: "No Recent Stations",
+                message: "Start listening to build your recent history"
+            )
+        }
     }
 
     private var sheetHeader: some View {

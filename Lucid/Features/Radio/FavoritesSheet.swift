@@ -12,6 +12,7 @@ struct FavoritesSheet: View {
     ) private var favoriteStations: [RadioStation]
 
     @Query(sort: \RadioCountry.countryName) private var countries: [RadioCountry]
+    @Query private var cachedStations: [RadioStation]
 
     @State private var selectedStationCountry: FavoriteStationCountrySelection?
 
@@ -25,11 +26,7 @@ struct FavoritesSheet: View {
         NavigationStack {
             Group {
                 if sortedFavoriteStations.isEmpty {
-                    EmptyStateView(
-                        icon: "heart",
-                        title: "No Favorites",
-                        message: "No favorites yet - tap the heart on any station to save it here"
-                    )
+                    emptyState
                 } else {
                     List {
                         ForEach(sortedFavoriteStations) { station in
@@ -63,6 +60,22 @@ struct FavoritesSheet: View {
         }
         .presentationDetents([.large])
         .presentationDragIndicator(.visible)
+    }
+
+    private var emptyState: some View {
+        if cachedStations.isEmpty {
+            EmptyStateView(
+                icon: "wifi.slash",
+                title: "You're Offline",
+                message: "Favorites will appear here once stations have been cached on this device."
+            )
+        } else {
+            EmptyStateView(
+                icon: "heart",
+                title: "No Favorites",
+                message: "No favorites yet - tap the heart on any station to save it here"
+            )
+        }
     }
 
     private var sheetHeader: some View {

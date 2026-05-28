@@ -20,6 +20,12 @@ struct LucidApp: App {
             MainTabView()
                 .modelContainer(modelContainer)
                 .environmentObject(PlayerViewModel())
+                .onAppear {
+                    Task {
+                        await RadioBrowserService(modelContext: modelContainer.mainContext)
+                            .refreshCountriesIfStale()
+                    }
+                }
         }
     }
 }

@@ -103,6 +103,7 @@ final class RadioBrowserService {
     private let baseURL = URL(string: "https://de1.api.radio-browser.info/json/")!
     private let decoder: JSONDecoder
     private var lastAPICallAt: Date?
+    private(set) var servedOfflineCache = false
 
     init(modelContext: ModelContext?) {
         self.modelContext = modelContext
@@ -120,12 +121,21 @@ final class RadioBrowserService {
             throw RadioBrowserError.invalidResponse("No ModelContext available")
         }
 
+        servedOfflineCache = false
         let cached = try fetchCachedCountries(context: modelContext)
         if !cached.isEmpty, cached.first.map({ !CacheExpiry.isExpired($0.cachedAt, for: .countries) }) == true {
             return cached
         }
 
-        let countries: [RadioBrowserCountry] = try await request(path: "countries")
+        let countries: [RadioBrowserCountry]
+        do {
+            countries = try await request(path: "countries")
+        } catch RadioBrowserError.networkError where !cached.isEmpty {
+            servedOfflineCache = true
+            return cached
+        } catch {
+            throw error
+        }
 
         guard !countries.isEmpty else {
             throw RadioBrowserError.noResults
@@ -154,10 +164,17 @@ final class RadioBrowserService {
             return cached
         }
 
-        let stations: [RadioBrowserStation] = try await request(
-            path: "stations/bycountrycodeexact/\(normalizedCode)",
-            queryItems: stationFilterItems(hideBroken: hideBroken)
-        )
+        let stations: [RadioBrowserStation]
+        do {
+            stations = try await request(
+                path: "stations/bycountrycodeexact/\(normalizedCode)",
+                queryItems: stationFilterItems(hideBroken: hideBroken)
+            )
+        } catch RadioBrowserError.networkError where !cached.isEmpty {
+            return cached
+        } catch {
+            throw error
+        }
 
         guard !stations.isEmpty else {
             throw RadioBrowserError.noResults
@@ -166,6 +183,24 @@ final class RadioBrowserService {
         let models = upsertStations(stations, context: modelContext)
         try saveContext(context: modelContext)
         return models
+    }
+
+    func refreshCountriesIfStale() async {
+        guard let modelContext else { return }
+
+        let cached = (try? fetchCachedCountries(context: modelContext)) ?? []
+        var shouldRefreshCountries = true
+        if !cached.isEmpty {
+            let oldest = cached.map(\.cachedAt).min() ?? .distantPast
+            if !CacheExpiry.isExpired(oldest, for: .countries) {
+                shouldRefreshCountries = false
+            }
+        }
+
+        if shouldRefreshCountries {
+            _ = try? await fetchCountries()
+        }
+        await refreshStaleStationCaches()
     }
 
     func searchStations(query: String, limit: Int = 30) async throws -> [RadioStation] {
@@ -251,6 +286,21 @@ final class RadioBrowserService {
 
         if let modelContext {
             try? modelContext.save()
+        }
+    }
+
+    private func refreshStaleStationCaches() async {
+        guard let modelContext else { return }
+
+        let descriptor = FetchDescriptor<RadioStation>()
+        let stations = (try? modelContext.fetch(descriptor)) ?? []
+        let groupedByCountry = Dictionary(grouping: stations) { $0.countryCode }
+
+        for (countryCode, cachedStations) in groupedByCountry where !countryCode.isEmpty {
+            let oldest = cachedStations.map(\.cachedAt).min() ?? .distantPast
+            if CacheExpiry.isExpired(oldest, for: .stations) {
+                _ = try? await fetchStations(forCountryCode: countryCode)
+            }
         }
     }
 

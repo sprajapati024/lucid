@@ -66,7 +66,7 @@ struct RadioMiniPlayer: View {
             .padding(.horizontal, 12)
             .padding(.vertical, 8)
         }
-        .frame(height: 78)
+        .frame(height: radioService.errorMessage == nil ? 78 : 96)
         .background(Color.lucidCard)
         .onAppear {
             pulse = true
@@ -97,10 +97,22 @@ struct RadioMiniPlayer: View {
                 .foregroundColor(.lucidWhite)
                 .lineLimit(2)
 
-            Text(stationDetail)
-                .font(.system(size: 12))
-                .foregroundColor(.lucidGray)
-                .lineLimit(1)
+            if radioService.errorMessage != nil {
+                Button {
+                    retryPlayback()
+                } label: {
+                    Text("Tap to retry")
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundColor(.red)
+                        .lineLimit(1)
+                }
+                .buttonStyle(.plain)
+            } else {
+                Text(stationDetail)
+                    .font(.system(size: 12))
+                    .foregroundColor(.lucidGray)
+                    .lineLimit(1)
+            }
         }
     }
 
@@ -130,5 +142,11 @@ struct RadioMiniPlayer: View {
             station.isFavorite = previousIsFavorite
             station.dateAdded = previousDateAdded
         }
+    }
+
+    private func retryPlayback() {
+        guard let retryStation = radioService.currentStation ?? station else { return }
+
+        radioService.play(station: retryStation, modelContext: modelContext)
     }
 }

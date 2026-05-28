@@ -21,9 +21,12 @@ struct CountryStationSheet: View {
         NavigationStack {
             Group {
                 if isLoading {
-                    ProgressView()
-                        .controlSize(.large)
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    VStack(spacing: 0) {
+                        ForEach(0..<5, id: \.self) { _ in
+                            SkeletonStationRow()
+                        }
+                    }
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
                 } else if let errorMessage {
                     errorView(errorMessage)
                 } else if stations.isEmpty {
@@ -55,6 +58,19 @@ struct CountryStationSheet: View {
             }
             .navigationTitle("\(country.flagEmoji) \(country.countryName)")
             .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button {
+                        Task {
+                            await fetchStations()
+                        }
+                    } label: {
+                        Image(systemName: "arrow.clockwise")
+                    }
+                    .disabled(isLoading)
+                    .accessibilityLabel("Refresh stations")
+                }
+            }
             .safeAreaInset(edge: .top) {
                 header
             }
@@ -154,5 +170,44 @@ struct CountryStationSheet: View {
         }
 
         playerVM.playRadioStation(station, modelContext: modelContext)
+    }
+}
+
+private struct SkeletonStationRow: View {
+    @State private var isHighlighted = false
+
+    var body: some View {
+        HStack(spacing: 12) {
+            RoundedRectangle(cornerRadius: 8)
+                .fill(placeholderColor)
+                .frame(width: 48, height: 48)
+
+            VStack(alignment: .leading, spacing: 8) {
+                RoundedRectangle(cornerRadius: 4)
+                    .fill(placeholderColor)
+                    .frame(width: 180, height: 14)
+
+                RoundedRectangle(cornerRadius: 4)
+                    .fill(placeholderColor)
+                    .frame(width: 120, height: 11)
+            }
+
+            Spacer()
+
+            Circle()
+                .fill(placeholderColor)
+                .frame(width: 28, height: 28)
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 12)
+        .onAppear {
+            withAnimation(.easeInOut(duration: 0.8).repeatForever(autoreverses: true)) {
+                isHighlighted = true
+            }
+        }
+    }
+
+    private var placeholderColor: Color {
+        Color.lucidGray.opacity(isHighlighted ? 0.5 : 0.3)
     }
 }

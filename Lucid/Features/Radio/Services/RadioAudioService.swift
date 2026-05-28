@@ -18,7 +18,8 @@ final class RadioAudioService: ObservableObject {
     private var endObserver: NSObjectProtocol?
     private var statusObservation: NSKeyValueObservation?
     private var timeControlStatusObservation: NSKeyValueObservation?
-    private var didAttemptReconnect = false
+    private var playbackAttemptCount = 0
+    private var activeStreamURLString: String?
     private var reconnectWorkItem: DispatchWorkItem?
     private weak var modelContext: ModelContext?
 
@@ -27,7 +28,8 @@ final class RadioAudioService: ObservableObject {
     func play(station: RadioStation, modelContext: ModelContext) {
         reconnectWorkItem?.cancel()
         reconnectWorkItem = nil
-        didAttemptReconnect = false
+        playbackAttemptCount = 0
+        activeStreamURLString = nil
         self.modelContext = modelContext
         startPlayback(station: station, updateLastPlayed: true)
     }
@@ -42,6 +44,7 @@ final class RadioAudioService: ObservableObject {
         isPlaying = false
         isBuffering = false
         currentStation = nil
+        activeStreamURLString = nil
     }
 
     func setVolume(_ volume: Float) {
@@ -51,9 +54,10 @@ final class RadioAudioService: ObservableObject {
     }
 
     private func startPlayback(station: RadioStation, updateLastPlayed: Bool) {
-        guard let streamURL = URL(string: station.displayURL), !station.displayURL.isEmpty else {
+        guard let streamURLString = nextStreamURLString(for: station),
+              let streamURL = URL(string: streamURLString) else {
             errorMessage = "This station does not have a valid stream URL."
-            stop()
+            clearPlayback()
             return
         }
 
@@ -69,6 +73,7 @@ final class RadioAudioService: ObservableObject {
         playerItem = item
         player = streamPlayer
         currentStation = station
+        activeStreamURLString = streamURLString
         isBuffering = true
         isPlaying = false
         errorMessage = nil
@@ -76,6 +81,7 @@ final class RadioAudioService: ObservableObject {
         if updateLastPlayed {
             station.lastPlayed = Date()
             try? modelContext?.save()
+            trackClick(for: station)
         }
 
         observePlayerStatus()
@@ -165,20 +171,17 @@ final class RadioAudioService: ObservableObject {
             return
         }
 
-        errorMessage = error.localizedDescription
+        playbackAttemptCount += 1
 
-        if didAttemptReconnect {
-            stop()
+        if playbackAttemptCount >= 2 || nextStreamURLString(for: station) == nil {
+            errorMessage = "Station unavailable. Try another station from \(station.country.isEmpty ? "this country" : station.country)."
+            clearPlayback()
             return
         }
 
-        didAttemptReconnect = true
+        errorMessage = "Stream unavailable - trying another source"
+        clearPlayback()
         isBuffering = true
-        isPlaying = false
-        removeObservers()
-        player?.pause()
-        player = nil
-        playerItem = nil
 
         let workItem = DispatchWorkItem { [weak self] in
             Task { @MainActor in
@@ -188,6 +191,41 @@ final class RadioAudioService: ObservableObject {
         }
         reconnectWorkItem = workItem
         DispatchQueue.main.asyncAfter(deadline: .now() + 3, execute: workItem)
+    }
+
+    private func nextStreamURLString(for station: RadioStation) -> String? {
+        let urls = [station.urlResolved, station.url]
+            .compactMap { $0 }
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+
+        guard !urls.isEmpty else { return nil }
+        guard let activeStreamURLString else { return urls.first }
+        guard let activeIndex = urls.firstIndex(of: activeStreamURLString) else { return urls.first }
+
+        return urls.dropFirst(activeIndex + 1).first
+    }
+
+    private func trackClick(for station: RadioStation) {
+        let stationUUID = station.stationuuid
+
+        Task.detached(priority: .background) {
+            guard let url = URL(string: "https://de1.api.radio-browser.info/json/url/\(stationUUID)") else { return }
+
+            var request = URLRequest(url: url)
+            request.httpMethod = "GET"
+            request.setValue("LucidRadio/1.0", forHTTPHeaderField: "User-Agent")
+            _ = try? await URLSession.shared.data(for: request)
+        }
+    }
+
+    private func clearPlayback() {
+        removeObservers()
+        player?.pause()
+        player = nil
+        playerItem = nil
+        isPlaying = false
+        isBuffering = false
     }
 
     private func removeObservers() {

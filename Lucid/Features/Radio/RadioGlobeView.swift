@@ -59,14 +59,21 @@ struct RadioGlobeView: View {
         }
         .overlay(alignment: .top) {
             if let errorMessage = viewModel.errorMessage {
-                Text(errorMessage)
-                    .font(.footnote)
-                    .foregroundStyle(.white)
-                    .padding(.horizontal, 16)
-                    .padding(.vertical, 10)
-                    .background(.red.opacity(0.9), in: RoundedRectangle(cornerRadius: 8))
-                    .padding(.top, 12)
-                    .padding(.horizontal)
+                VStack(spacing: 3) {
+                    Text(errorMessage)
+                        .font(.footnote.weight(.semibold))
+
+                    if viewModel.isOffline {
+                        Text("Check your connection")
+                            .font(.caption)
+                    }
+                }
+                .foregroundStyle(.white)
+                .padding(.horizontal, 16)
+                .padding(.vertical, 10)
+                .background(.red.opacity(0.9), in: RoundedRectangle(cornerRadius: 8))
+                .padding(.top, 12)
+                .padding(.horizontal)
             }
         }
         .toolbar {
@@ -123,6 +130,10 @@ struct RadioGlobeView: View {
     private func searchOverlay(onSelect: @escaping (RadioCountry) -> Void) -> some View {
         VStack(spacing: 8) {
             searchBar
+
+            if viewModel.isOffline {
+                offlineBanner
+            }
 
             if !viewModel.filteredCountries.isEmpty {
                 VStack(spacing: 0) {
@@ -183,6 +194,16 @@ struct RadioGlobeView: View {
         .padding(.vertical, 11)
         .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 8))
         .padding(.horizontal, 16)
+    }
+
+    private var offlineBanner: some View {
+        Label("You're offline - showing cached countries", systemImage: "wifi.slash")
+            .font(.footnote.weight(.medium))
+            .foregroundStyle(.blue)
+            .padding(.horizontal, 12)
+            .padding(.vertical, 8)
+            .background(Color.blue.opacity(0.12), in: RoundedRectangle(cornerRadius: 8))
+            .padding(.horizontal, 16)
     }
 
     private func country(at coordinate: CLLocationCoordinate2D) -> RadioCountry? {
