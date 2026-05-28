@@ -5,11 +5,12 @@ struct CountryStationSheet: View {
     let country: RadioCountry
     let highlightedStationUUID: String?
 
+    @EnvironmentObject private var playerVM: PlayerViewModel
     @Environment(\.modelContext) private var modelContext
     @State private var stations: [RadioStation] = []
     @State private var isLoading = false
     @State private var errorMessage: String?
-    @State private var showComingSoonAlert = false
+    @State private var playbackErrorMessage: String?
 
     init(country: RadioCountry, highlightedStationUUID: String? = nil) {
         self.country = country
@@ -38,7 +39,7 @@ struct CountryStationSheet: View {
                                 station: station,
                                 isHighlighted: station.stationuuid == highlightedStationUUID
                             ) {
-                                showComingSoonAlert = true
+                                play(station)
                             }
                             .id(station.stationuuid)
                         }
@@ -63,10 +64,13 @@ struct CountryStationSheet: View {
         .task {
             await fetchStations()
         }
-        .alert("Coming Soon", isPresented: $showComingSoonAlert) {
+        .alert("Unable to Play Station", isPresented: Binding(
+            get: { playbackErrorMessage != nil },
+            set: { if !$0 { playbackErrorMessage = nil } }
+        )) {
             Button("OK", role: .cancel) {}
         } message: {
-            Text("Playback will be added in Phase 4")
+            Text(playbackErrorMessage ?? "The station stream could not be loaded.")
         }
     }
 
@@ -139,5 +143,16 @@ struct CountryStationSheet: View {
                 proxy.scrollTo(highlightedStationUUID, anchor: .center)
             }
         }
+    }
+
+    private func play(_ station: RadioStation) {
+        let streamURLString = station.displayURL
+
+        guard !streamURLString.isEmpty, URL(string: streamURLString) != nil else {
+            playbackErrorMessage = "This station does not have a valid stream URL."
+            return
+        }
+
+        playerVM.playRadioStation(station, modelContext: modelContext)
     }
 }

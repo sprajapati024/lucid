@@ -1,6 +1,7 @@
 import SwiftUI
 import SwiftData
 import AVFoundation
+import Combine
 import MediaPlayer
 
 enum RepeatMode {
@@ -19,9 +20,13 @@ class PlayerViewModel: ObservableObject {
     @Published var queueCount: Int = 0
     @Published var currentQueueIndex: Int = 0
     @Published var queueItems: [Song] = []
+    @Published var isRadioMode = false
+    @Published var currentRadioStation: RadioStation?
+    @Published var radioIsBuffering = false
 
     private var player: AVAudioPlayer?
     private var displayLink: CADisplayLink?
+    private var radioCancellables = Set<AnyCancellable>()
     private var queue: [Song] = []
     private var queueIndex: Int = 0
     private var originalQueue: [Song] = []
@@ -37,6 +42,7 @@ class PlayerViewModel: ObservableObject {
         setupAudioSession()
         setupRemoteCommands()
         setupNotifications()
+        bindRadioService()
     }
 
     // MARK: - Audio Session
@@ -121,6 +127,10 @@ class PlayerViewModel: ObservableObject {
     // MARK: - Playback Controls
 
     func playSong(_ song: Song, queue: [Song]) {
+        if isRadioMode {
+            stopRadio()
+        }
+
         self.originalQueue = queue
         self.queue = isShuffled ? queue.shuffled() : queue
         if let idx = self.queue.firstIndex(where: { $0.id == song.id }) {
@@ -148,6 +158,11 @@ class PlayerViewModel: ObservableObject {
     }
 
     func togglePlayPause() {
+        if isRadioMode {
+            stopRadio()
+            return
+        }
+
         if isPlaying {
             pause()
         } else {
@@ -156,6 +171,8 @@ class PlayerViewModel: ObservableObject {
     }
 
     func play() {
+        guard !isRadioMode else { return }
+
         player?.play()
         isPlaying = true
         updateNowPlayingInfo()
@@ -164,6 +181,11 @@ class PlayerViewModel: ObservableObject {
     }
 
     func pause() {
+        if isRadioMode {
+            stopRadio()
+            return
+        }
+
         player?.pause()
         isPlaying = false
         updateNowPlayingInfo()
@@ -172,6 +194,11 @@ class PlayerViewModel: ObservableObject {
     }
 
     func stop() {
+        if isRadioMode {
+            stopRadio()
+            return
+        }
+
         player?.stop()
         player = nil
         isPlaying = false
@@ -190,6 +217,7 @@ class PlayerViewModel: ObservableObject {
     }
 
     func next() {
+        guard !isRadioMode else { return }
         guard !queue.isEmpty else { return }
         if repeatMode == .one {
             seek(to: 0)
@@ -201,6 +229,7 @@ class PlayerViewModel: ObservableObject {
     }
 
     func previous() {
+        guard !isRadioMode else { return }
         // If more than 3 seconds in, restart current track
         if currentTime > 3 {
             seek(to: 0)
@@ -212,6 +241,8 @@ class PlayerViewModel: ObservableObject {
     }
 
     func seek(to time: Double) {
+        guard !isRadioMode else { return }
+
         player?.currentTime = time
         currentTime = time
         updateNowPlayingInfo()
@@ -250,6 +281,27 @@ class PlayerViewModel: ObservableObject {
 
     func toggleFavorite() {
         currentSong?.isFavorite.toggle()
+    }
+
+    func playRadioStation(_ station: RadioStation, modelContext: ModelContext) {
+        stop()
+        isRadioMode = true
+        currentRadioStation = station
+        radioIsBuffering = true
+        isPlaying = false
+        showNowPlaying = false
+        RadioAudioService.shared.play(station: station, modelContext: modelContext)
+    }
+
+    func stopRadio() {
+        RadioAudioService.shared.stop()
+        isRadioMode = false
+        currentRadioStation = nil
+        radioIsBuffering = false
+        isPlaying = false
+        showNowPlaying = false
+        clearNowPlayingInfo()
+        postPlaybackStateNotification()
     }
 
     func restorePlayback(currentSong: Song?, queue restoredQueue: [Song], queueIndex restoredQueueIndex: Int, state: PlaybackState) {
@@ -303,6 +355,47 @@ class PlayerViewModel: ObservableObject {
         } catch {
             print("Failed to load audio: \(error)")
         }
+    }
+
+    private func bindRadioService() {
+        let service = RadioAudioService.shared
+
+        service.$isPlaying
+            .receive(on: RunLoop.main)
+            .sink { [weak self] isPlaying in
+                Task { @MainActor in
+                    guard let self, self.isRadioMode else { return }
+                    self.isPlaying = isPlaying
+                }
+            }
+            .store(in: &radioCancellables)
+
+        service.$isBuffering
+            .receive(on: RunLoop.main)
+            .sink { [weak self] isBuffering in
+                Task { @MainActor in
+                    guard let self, self.isRadioMode else { return }
+                    self.radioIsBuffering = isBuffering
+                }
+            }
+            .store(in: &radioCancellables)
+
+        service.$currentStation
+            .receive(on: RunLoop.main)
+            .sink { [weak self] station in
+                Task { @MainActor in
+                    guard let self, self.isRadioMode else { return }
+
+                    self.currentRadioStation = station
+                    if station == nil {
+                        self.isRadioMode = false
+                        self.radioIsBuffering = false
+                        self.isPlaying = false
+                        self.showNowPlaying = false
+                    }
+                }
+            }
+            .store(in: &radioCancellables)
     }
 
     private func stopCurrentAudioForReload() {

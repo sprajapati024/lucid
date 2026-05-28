@@ -1,17 +1,30 @@
 import SwiftUI
+import SwiftData
 
 struct NowPlayingView: View {
     @EnvironmentObject var playerVM: PlayerViewModel
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.modelContext) private var modelContext
+    @ObservedObject private var radioService = RadioAudioService.shared
     @State private var isDraggingSeekBar = false
     @State private var seekPosition: Double = 0
     @State private var showQueue = false
     @State private var showSleepTimerSheet = false
     @State private var sleepTimerManager = SleepTimerManager.shared
+    @State private var livePulse = false
 
     private var song: Song? { playerVM.currentSong }
+    private var station: RadioStation? { radioService.currentStation ?? playerVM.currentRadioStation }
 
     var body: some View {
+        if playerVM.isRadioMode {
+            radioBody
+        } else {
+            libraryBody
+        }
+    }
+
+    private var libraryBody: some View {
         ZStack {
             // Blurred background from album art
             if let artData = song?.albumArt,
@@ -225,6 +238,167 @@ struct NowPlayingView: View {
         }
         .sheet(isPresented: $showSleepTimerSheet) {
             SleepTimerSheet()
+        }
+    }
+
+    private var radioBody: some View {
+        ZStack {
+            Color.lucidBlack.ignoresSafeArea()
+
+            LinearGradient(
+                colors: [Color.lucidGreen.opacity(0.18), Color.lucidBlack.opacity(0.8), Color.lucidBlack],
+                startPoint: .top,
+                endPoint: .bottom
+            )
+            .ignoresSafeArea()
+
+            VStack(spacing: 0) {
+                HStack {
+                    Button {
+                        dismiss()
+                    } label: {
+                        Image(systemName: "chevron.down")
+                            .font(.system(size: 20, weight: .medium))
+                            .foregroundColor(.lucidGray)
+                    }
+
+                    Spacer()
+
+                    Text("Radio Mode")
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundColor(.lucidGray)
+
+                    Spacer()
+
+                    Color.clear
+                        .frame(width: 20, height: 20)
+                }
+                .padding(.horizontal, 24)
+                .padding(.top, 16)
+
+                Spacer()
+
+                ZStack {
+                    RoundedRectangle(cornerRadius: 24)
+                        .fill(Color.lucidCard)
+                        .frame(width: 260, height: 260)
+                        .shadow(color: .black.opacity(0.45), radius: 20, y: 10)
+
+                    Image(systemName: "dot.radiowaves.left.and.right")
+                        .font(.system(size: 96, weight: .medium))
+                        .foregroundColor(.lucidGreen)
+                        .opacity(livePulse ? 1 : 0.55)
+                }
+                .animation(.easeInOut(duration: 0.9).repeatForever(autoreverses: true), value: livePulse)
+
+                Spacer()
+
+                VStack(spacing: 10) {
+                    HStack(spacing: 8) {
+                        Circle()
+                            .fill(Color.lucidGreen)
+                            .frame(width: 8, height: 8)
+                            .opacity(livePulse ? 1 : 0.35)
+
+                        Text(radioService.isBuffering ? "BUFFERING" : "LIVE")
+                            .font(.system(size: 12, weight: .bold))
+                            .foregroundColor(.lucidGreen)
+                    }
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 6)
+                    .background(Color.lucidGreen.opacity(0.14), in: Capsule())
+
+                    Text(station?.name ?? "Radio")
+                        .font(.system(size: 24, weight: .bold))
+                        .foregroundColor(.lucidWhite)
+                        .multilineTextAlignment(.center)
+                        .lineLimit(2)
+
+                    Text(radioStationDetail)
+                        .font(.system(size: 16))
+                        .foregroundColor(.lucidGray)
+                        .lineLimit(1)
+                }
+                .padding(.horizontal, 24)
+
+                Spacer()
+
+                HStack(spacing: 36) {
+                    Button {
+                        toggleRadioFavorite()
+                    } label: {
+                        Image(systemName: station?.isFavorite == true ? "heart.fill" : "heart")
+                            .font(.system(size: 28))
+                            .foregroundColor(station?.isFavorite == true ? .lucidGreen : .lucidGray)
+                    }
+                    .disabled(station == nil)
+
+                    Button {
+                        playerVM.stopRadio()
+                        dismiss()
+                    } label: {
+                        Image(systemName: "stop.circle.fill")
+                            .font(.system(size: 76))
+                            .foregroundColor(.lucidWhite)
+                    }
+                }
+                .padding(.horizontal, 24)
+
+                Spacer()
+
+                HStack(spacing: 10) {
+                    Image(systemName: "speaker.fill")
+                        .font(.system(size: 13))
+                        .foregroundColor(.lucidGray)
+
+                    Slider(
+                        value: Binding(
+                            get: { Double(radioService.volume) },
+                            set: { radioService.setVolume(Float($0)) }
+                        ),
+                        in: 0...1
+                    )
+                    .tint(.lucidGreen)
+
+                    Image(systemName: "speaker.wave.3.fill")
+                        .font(.system(size: 13))
+                        .foregroundColor(.lucidGray)
+                }
+                .padding(.horizontal, 40)
+                .padding(.bottom, 44)
+            }
+        }
+        .onAppear {
+            livePulse = true
+        }
+    }
+
+    private var radioStationDetail: String {
+        guard let station else { return "Streaming" }
+
+        return [
+            station.flagEmoji,
+            station.country.isEmpty ? station.countryCode : station.country,
+            station.bitrate > 0 ? "\(station.bitrate) kbps" : nil
+        ]
+        .compactMap { $0 }
+        .joined(separator: " • ")
+    }
+
+    private func toggleRadioFavorite() {
+        guard let station else { return }
+
+        let previousIsFavorite = station.isFavorite
+        let previousDateAdded = station.dateAdded
+
+        station.isFavorite.toggle()
+        station.dateAdded = station.isFavorite ? Date() : nil
+
+        do {
+            try modelContext.save()
+        } catch {
+            station.isFavorite = previousIsFavorite
+            station.dateAdded = previousDateAdded
         }
     }
 

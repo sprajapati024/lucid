@@ -37,7 +37,12 @@ struct MainTabView: View {
             .tint(Color.lucidGreen)
 
             // Mini Player sits above tab bar
-            if playerVM.currentSong != nil {
+            if playerVM.isRadioMode {
+                VStack(spacing: 0) {
+                    Spacer()
+                    RadioMiniPlayer(radioService: RadioAudioService.shared)
+                }
+            } else if playerVM.currentSong != nil {
                 VStack(spacing: 0) {
                     Spacer()
                     MiniPlayerView()
