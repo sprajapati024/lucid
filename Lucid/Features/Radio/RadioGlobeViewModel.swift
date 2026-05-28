@@ -8,6 +8,7 @@ import SwiftData
 final class RadioGlobeViewModel {
     var countries: [RadioCountry] = []
     var selectedCountry: RadioCountry?
+    var searchText = ""
     var isLoading = false
     var errorMessage: String?
 
@@ -19,6 +20,17 @@ final class RadioGlobeViewModel {
         Task {
             await loadCountries()
         }
+    }
+
+    var filteredCountries: [RadioCountry] {
+        let trimmedSearch = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedSearch.isEmpty else { return [] }
+
+        return Array(
+            countries
+                .filter { $0.countryName.localizedCaseInsensitiveContains(trimmedSearch) }
+                .prefix(5)
+        )
     }
 
     func loadCountries() async {

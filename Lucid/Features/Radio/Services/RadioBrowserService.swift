@@ -246,7 +246,12 @@ final class RadioBrowserService {
     }
 
     func toggleFavorite(_ station: RadioStation) {
-        // TODO: Phase 3 — implement favorite toggle with SwiftData
+        station.isFavorite.toggle()
+        station.dateAdded = station.isFavorite ? Date() : nil
+
+        if let modelContext {
+            try? modelContext.save()
+        }
     }
 
     private func request<T: Decodable>(

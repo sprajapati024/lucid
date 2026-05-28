@@ -5,33 +5,45 @@ struct RadioGlobeView: View {
     @Bindable var viewModel: RadioGlobeViewModel
 
     @State private var cameraPosition: MapCameraPosition = .automatic
+    @State private var isShowingFavorites = false
+    @State private var isShowingRecent = false
 
     var body: some View {
         ZStack(alignment: .bottom) {
             MapReader { proxy in
-                Map(position: $cameraPosition) {
-                    ForEach(viewModel.countries) { country in
-                        if let coordinate = country.mapCoordinate {
-                            let isSelected = country.countryCode == viewModel.selectedCountry?.countryCode
-                            let fillColor = isSelected ? Color.lucidGreen : country.mapColor
+                ZStack(alignment: .top) {
+                    Map(position: $cameraPosition) {
+                        ForEach(viewModel.countries) { country in
+                            if let coordinate = country.mapCoordinate {
+                                let isSelected = country.countryCode == viewModel.selectedCountry?.countryCode
+                                let fillColor = isSelected ? Color.lucidGreen : country.mapColor
 
-                            MapCircle(center: coordinate, radius: 800_000)
-                                .foregroundStyle(fillColor.opacity(isSelected ? 1.0 : 0.5))
+                                MapCircle(center: coordinate, radius: 800_000)
+                                    .foregroundStyle(fillColor.opacity(isSelected ? 1.0 : 0.5))
 
-                            MapCircle(center: coordinate, radius: 800_000)
-                                .stroke(.white, lineWidth: isSelected ? 4 : 2)
+                                MapCircle(center: coordinate, radius: 800_000)
+                                    .stroke(.white, lineWidth: isSelected ? 4 : 2)
+                            }
                         }
                     }
-                }
-                .mapStyle(.standard(elevation: .realistic))
-                .ignoresSafeArea()
-                .onTapGesture(coordinateSpace: .local) { point in
-                    guard let coordinate = proxy.convert(point, from: .local),
-                          let country = country(at: coordinate) else {
-                        return
+                    .mapStyle(.standard(elevation: .realistic))
+                    .ignoresSafeArea()
+                    .onTapGesture(coordinateSpace: .local) { point in
+                        dismissSearchResults()
+
+                        guard let coordinate = proxy.convert(point, from: .local),
+                              let country = country(at: coordinate) else {
+                            return
+                        }
+
+                        viewModel.selectCountry(country)
                     }
 
-                    viewModel.selectCountry(country)
+                    searchOverlay { country in
+                        fly(to: country)
+                        viewModel.selectCountry(country)
+                        dismissSearchResults()
+                    }
                 }
             }
 
@@ -58,15 +70,42 @@ struct RadioGlobeView: View {
             }
         }
         .toolbar {
-            ToolbarItem(placement: .topBarTrailing) {
+            ToolbarItem(placement: .topBarLeading) {
                 Button {
-                    viewModel.selectRandomCountry()
+                    isShowingRecent = true
                 } label: {
-                    Image(systemName: "shuffle")
+                    Image(systemName: "clock.arrow.circlepath")
                 }
-                .disabled(viewModel.countries.isEmpty)
-                .accessibilityLabel("Random country")
+                .accessibilityLabel("Recently played")
             }
+
+            ToolbarItem(placement: .topBarTrailing) {
+                HStack(spacing: 16) {
+                    Button {
+                        isShowingFavorites = true
+                    } label: {
+                        Image(systemName: "heart")
+                    }
+                    .accessibilityLabel("Favorites")
+
+                    Button {
+                        viewModel.selectRandomCountry()
+                        if let country = viewModel.selectedCountry {
+                            fly(to: country)
+                        }
+                    } label: {
+                        Image(systemName: "shuffle")
+                    }
+                    .disabled(viewModel.countries.isEmpty)
+                    .accessibilityLabel("Random country")
+                }
+            }
+        }
+        .sheet(isPresented: $isShowingFavorites) {
+            FavoritesSheet()
+        }
+        .sheet(isPresented: $isShowingRecent) {
+            RecentSheet()
         }
     }
 
@@ -81,6 +120,71 @@ struct RadioGlobeView: View {
         .background(.ultraThinMaterial)
     }
 
+    private func searchOverlay(onSelect: @escaping (RadioCountry) -> Void) -> some View {
+        VStack(spacing: 8) {
+            searchBar
+
+            if !viewModel.filteredCountries.isEmpty {
+                VStack(spacing: 0) {
+                    ForEach(viewModel.filteredCountries) { country in
+                        Button {
+                            onSelect(country)
+                        } label: {
+                            HStack(spacing: 10) {
+                                Text(country.flagEmoji)
+                                Text(country.countryName)
+                                    .foregroundStyle(.lucidWhite)
+                                Spacer()
+                            }
+                            .font(.subheadline.weight(.semibold))
+                            .padding(.horizontal, 14)
+                            .padding(.vertical, 12)
+                        }
+                        .buttonStyle(.plain)
+
+                        if country.persistentModelID != viewModel.filteredCountries.last?.persistentModelID {
+                            Divider()
+                                .overlay(Color.white.opacity(0.12))
+                        }
+                    }
+                }
+                .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 8))
+                .padding(.horizontal, 16)
+                .shadow(color: .black.opacity(0.25), radius: 12, y: 6)
+            }
+
+            Spacer()
+        }
+        .padding(.top, 8)
+    }
+
+    private var searchBar: some View {
+        HStack(spacing: 10) {
+            Image(systemName: "magnifyingglass")
+                .foregroundStyle(.secondary)
+
+            TextField("Search countries...", text: $viewModel.searchText)
+                .textInputAutocapitalization(.never)
+                .autocorrectionDisabled()
+                .foregroundStyle(.lucidWhite)
+
+            if !viewModel.searchText.isEmpty {
+                Button {
+                    dismissSearchResults()
+                } label: {
+                    Image(systemName: "xmark.circle.fill")
+                        .foregroundStyle(.secondary)
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Clear search")
+            }
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 11)
+        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 8))
+        .padding(.horizontal, 16)
+    }
+
     private func country(at coordinate: CLLocationCoordinate2D) -> RadioCountry? {
         let latDelta = 15.0
         let lngDelta = 15.0
@@ -93,6 +197,22 @@ struct RadioGlobeView: View {
                 && center.longitude - lngDelta <= coordinate.longitude
                 && coordinate.longitude <= center.longitude + lngDelta
         }
+    }
+
+    private func fly(to country: RadioCountry) {
+        let center = country.mapCoordinate ?? CLLocationCoordinate2D(latitude: 20.0, longitude: 0.0)
+        let region = MKCoordinateRegion(
+            center: center,
+            span: MKCoordinateSpan(latitudeDelta: 18, longitudeDelta: 18)
+        )
+
+        withAnimation(.easeInOut(duration: 0.7)) {
+            cameraPosition = .region(region)
+        }
+    }
+
+    private func dismissSearchResults() {
+        viewModel.searchText = ""
     }
 }
 

@@ -20,8 +20,9 @@ final class RadioStation {
     var clickcount: Int
     var votes: Int
     var lastCheckOk: Bool
-    var isFavorite: Bool
-    var lastPlayedAt: Date?
+    var isFavorite: Bool = false
+    var dateAdded: Date?
+    var lastPlayed: Date?
     var cachedAt: Date
 
     init(
@@ -43,7 +44,8 @@ final class RadioStation {
         votes: Int,
         lastCheckOk: Bool,
         isFavorite: Bool = false,
-        lastPlayedAt: Date? = nil,
+        dateAdded: Date? = nil,
+        lastPlayed: Date? = nil,
         cachedAt: Date = Date()
     ) {
         self.stationuuid = stationuuid
@@ -64,7 +66,8 @@ final class RadioStation {
         self.votes = votes
         self.lastCheckOk = lastCheckOk
         self.isFavorite = isFavorite
-        self.lastPlayedAt = lastPlayedAt
+        self.dateAdded = dateAdded
+        self.lastPlayed = lastPlayed
         self.cachedAt = cachedAt
     }
 

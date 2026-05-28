@@ -3,12 +3,18 @@ import SwiftUI
 
 struct CountryStationSheet: View {
     let country: RadioCountry
+    let highlightedStationUUID: String?
 
     @Environment(\.modelContext) private var modelContext
     @State private var stations: [RadioStation] = []
     @State private var isLoading = false
     @State private var errorMessage: String?
     @State private var showComingSoonAlert = false
+
+    init(country: RadioCountry, highlightedStationUUID: String? = nil) {
+        self.country = country
+        self.highlightedStationUUID = highlightedStationUUID
+    }
 
     var body: some View {
         NavigationStack {
@@ -26,12 +32,24 @@ struct CountryStationSheet: View {
                         description: Text("No stations are available for this country yet.")
                     )
                 } else {
-                    List(stations) { station in
-                        StationRowView(station: station) {
-                            showComingSoonAlert = true
+                    ScrollViewReader { scrollProxy in
+                        List(stations) { station in
+                            StationRowView(
+                                station: station,
+                                isHighlighted: station.stationuuid == highlightedStationUUID
+                            ) {
+                                showComingSoonAlert = true
+                            }
+                            .id(station.stationuuid)
+                        }
+                        .listStyle(.plain)
+                        .onAppear {
+                            scrollToHighlightedStation(with: scrollProxy)
+                        }
+                        .onChange(of: stations.map(\.stationuuid)) { _, _ in
+                            scrollToHighlightedStation(with: scrollProxy)
                         }
                     }
-                    .listStyle(.plain)
                 }
             }
             .navigationTitle("\(country.flagEmoji) \(country.countryName)")
@@ -112,50 +130,14 @@ struct CountryStationSheet: View {
 
         isLoading = false
     }
-}
 
-struct StationRowView: View {
-    @Environment(\.modelContext) private var modelContext
+    private func scrollToHighlightedStation(with proxy: ScrollViewProxy) {
+        guard let highlightedStationUUID else { return }
 
-    var station: RadioStation
-    var onSelect: () -> Void
-
-    var body: some View {
-        HStack(spacing: 12) {
-            VStack(alignment: .leading, spacing: 4) {
-                Text(station.name)
-                    .font(.body.weight(.semibold))
-                    .lineLimit(2)
-
-                Text(details)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .lineLimit(1)
+        DispatchQueue.main.async {
+            withAnimation(.easeInOut) {
+                proxy.scrollTo(highlightedStationUUID, anchor: .center)
             }
-
-            Spacer(minLength: 12)
-
-            Button {
-                RadioBrowserService(modelContext: modelContext).toggleFavorite(station)
-            } label: {
-                Image(systemName: station.isFavorite ? "heart.fill" : "heart")
-                    .foregroundStyle(station.isFavorite ? .red : .secondary)
-            }
-            .buttonStyle(.borderless)
-            .accessibilityLabel(station.isFavorite ? "Remove favorite" : "Add favorite")
         }
-        .contentShape(Rectangle())
-        .onTapGesture(perform: onSelect)
-        .padding(.vertical, 6)
-    }
-
-    private var details: String {
-        [
-            station.topTag,
-            station.codec.isEmpty ? nil : station.codec,
-            station.bitrate > 0 ? "\(station.bitrate) kbps" : nil
-        ]
-        .compactMap { $0 }
-        .joined(separator: " • ")
     }
 }
