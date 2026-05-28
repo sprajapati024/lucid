@@ -136,7 +136,7 @@ final class RadioBrowserService {
         let normalizedCode = code.uppercased()
         let cached = try fetchCachedStations(countryCode: normalizedCode)
 
-        if !cached.isEmpty, cached.allSatisfy({ !CacheExpiry.isExpired($0.cachedAt, for: .stations) }) {
+        if !cached.isEmpty, cached.first.map({ !CacheExpiry.isExpired($0.cachedAt, for: .stations) }) == true {
             return cached
         }
 
