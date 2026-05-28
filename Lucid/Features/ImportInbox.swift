@@ -8,6 +8,8 @@ final class ImportInboxManager {
     static let shared = ImportInboxManager()
 
     var pendingFiles: [InboxItem] = []
+    var failedCount = 0
+    var importError: String?
 
     private init() {}
 
@@ -44,6 +46,18 @@ final class ImportInboxManager {
             MetadataExtractor().extractMetadata(from: item.url) { [weak self] song in
                 if let song {
                     modelContext.insert(song)
+
+                    do {
+                        try modelContext.save()
+                    } catch {
+                        self?.failedCount += 1
+                        self?.importError = error.localizedDescription
+                        print("Import failed: \(error)")
+                    }
+                } else {
+                    self?.failedCount += 1
+                    self?.importError = "Could not read metadata for \(item.url.lastPathComponent)."
+                    print("Import failed: could not read metadata for \(item.url.lastPathComponent)")
                 }
                 self?.removeItem(item)
             }

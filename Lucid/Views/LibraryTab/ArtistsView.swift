@@ -10,7 +10,10 @@ struct ArtistGroup: Identifiable {
     var albumCount: Int {
         Set(songs.map { song in
             let album = song.albumTitle?.trimmingCharacters(in: .whitespacesAndNewlines)
-            return album?.isEmpty == false ? album! : "Unknown Album"
+            if let albumName = album, !albumName.isEmpty {
+                return albumName
+            }
+            return "Unknown Album"
         }).count
     }
 }
@@ -53,10 +56,10 @@ struct ArtistsView: View {
                         } label: {
                             VStack(alignment: .leading, spacing: 3) {
                                 Text(artist.name)
-                                    .font(.system(size: 16, weight: .medium))
+                                    .font(.body.weight(.medium))
                                     .foregroundColor(.lucidWhite)
                                 Text("\(artist.songCount) \(artist.songCount == 1 ? "song" : "songs") · \(artist.albumCount) \(artist.albumCount == 1 ? "album" : "albums")")
-                                    .font(.system(size: 12))
+                                    .font(.caption)
                                     .foregroundColor(.lucidGray)
                             }
                             .padding(.vertical, 4)

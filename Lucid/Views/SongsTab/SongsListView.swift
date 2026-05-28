@@ -39,6 +39,7 @@ struct SongsListView: View {
     @State private var showListeningModesSheet = false
     @State private var showCleanupSheet = false
     @State private var showImportInboxSheet = false
+    @State private var showDeleteError = false
 
     private var sortOrder: SongsSortOrder {
         SongsSortOrder(rawValue: sortOrderRawValue) ?? .titleAZ
@@ -195,6 +196,11 @@ struct SongsListView: View {
         } message: {
             Text("This will permanently remove \"\(songToDelete?.title ?? "")\" from your library.")
         }
+        .alert("Delete Failed", isPresented: $showDeleteError) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text("Could not delete the song. Please try again.")
+        }
     }
 
     @ViewBuilder
@@ -212,7 +218,7 @@ struct SongsListView: View {
         }
 
         Button {
-            song.isFavorite.toggle()
+            toggleFavorite(song)
         } label: {
             Label(song.isFavorite ? "Unfavorite" : "Favorite", systemImage: song.isFavorite ? "heart.fill" : "heart")
         }
@@ -252,15 +258,33 @@ struct SongsListView: View {
     }
 
     private func deleteSong(_ song: Song) {
-        // Delete the file
         if let fileURL = song.absoluteFileURL {
             try? FileManager.default.removeItem(at: fileURL)
         }
-        // Delete the SwiftData record
+
         modelContext.delete(song)
-        // If it was playing, stop
+
         if playerVM.currentSong?.id == song.id {
             playerVM.stop()
+        }
+
+        do {
+            try modelContext.save()
+            songToDelete = nil
+        } catch {
+            modelContext.rollback()
+            showDeleteError = true
+        }
+    }
+
+    private func toggleFavorite(_ song: Song) {
+        song.isFavorite.toggle()
+
+        do {
+            try modelContext.save()
+        } catch {
+            song.isFavorite.toggle()
+            print("Failed to save favorite: \(error)")
         }
     }
 }

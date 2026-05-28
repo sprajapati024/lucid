@@ -10,6 +10,7 @@ struct RadioGlobeView: View {
     @State private var cameraPosition: MapCameraPosition = .automatic
     @State private var isShowingFavorites = false
     @State private var isShowingRecent = false
+    @State private var searchTask: Task<Void, Never>?
 
     var body: some View {
         ZStack(alignment: .bottom) {
@@ -74,7 +75,7 @@ struct RadioGlobeView: View {
                 .foregroundStyle(.white)
                 .padding(.horizontal, 16)
                 .padding(.vertical, 10)
-                .background(.red.opacity(0.9), in: RoundedRectangle(cornerRadius: 8))
+                .background(Color.lucidRed.opacity(0.9), in: RoundedRectangle(cornerRadius: 8))
                 .padding(.top, 12)
                 .padding(.horizontal)
             }
@@ -115,6 +116,20 @@ struct RadioGlobeView: View {
             playerVM.playRadioStation(station, modelContext: modelContext)
             viewModel.currentStationToPlay = nil
         }
+        .onChange(of: viewModel.searchText) { _, newValue in
+            searchTask?.cancel()
+
+            guard !newValue.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+                viewModel.stationResults = []
+                return
+            }
+
+            searchTask = Task {
+                try? await Task.sleep(for: .milliseconds(300))
+                guard !Task.isCancelled else { return }
+                await viewModel.searchStations(modelContext: modelContext)
+            }
+        }
         .sheet(isPresented: $isShowingFavorites) {
             FavoritesSheet()
         }
@@ -142,27 +157,65 @@ struct RadioGlobeView: View {
                 offlineBanner
             }
 
-            if !viewModel.filteredCountries.isEmpty {
+            if !viewModel.filteredCountries.isEmpty || viewModel.hasStationResults {
                 VStack(spacing: 0) {
-                    ForEach(viewModel.filteredCountries) { country in
-                        Button {
-                            onSelect(country)
-                        } label: {
-                            HStack(spacing: 10) {
-                                Text(country.flagEmoji)
-                                Text(country.countryName)
-                                    .foregroundStyle(.lucidWhite)
-                                Spacer()
-                            }
-                            .font(.subheadline.weight(.semibold))
+                    if !viewModel.filteredCountries.isEmpty {
+                        Text("Countries")
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(.secondary)
+                            .frame(maxWidth: .infinity, alignment: .leading)
                             .padding(.horizontal, 14)
-                            .padding(.vertical, 12)
-                        }
-                        .buttonStyle(.plain)
+                            .padding(.top, 10)
+                            .padding(.bottom, 4)
 
-                        if country.persistentModelID != viewModel.filteredCountries.last?.persistentModelID {
+                        ForEach(viewModel.filteredCountries) { country in
+                            Button {
+                                onSelect(country)
+                            } label: {
+                                HStack(spacing: 10) {
+                                    Text(country.flagEmoji)
+                                    Text(country.countryName)
+                                        .foregroundStyle(.lucidWhite)
+                                    Spacer()
+                                }
+                                .font(.subheadline.weight(.semibold))
+                                .padding(.horizontal, 14)
+                                .padding(.vertical, 12)
+                            }
+                            .buttonStyle(.plain)
+
+                            if country.persistentModelID != viewModel.filteredCountries.last?.persistentModelID {
+                                Divider()
+                                    .overlay(Color.white.opacity(0.12))
+                            }
+                        }
+                    }
+
+                    if viewModel.hasStationResults {
+                        if !viewModel.filteredCountries.isEmpty {
                             Divider()
                                 .overlay(Color.white.opacity(0.12))
+                        }
+
+                        Text("Stations")
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(.secondary)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .padding(.horizontal, 14)
+                            .padding(.top, 10)
+                            .padding(.bottom, 4)
+
+                        ForEach(viewModel.stationResults) { station in
+                            StationRowView(station: station, isHighlighted: false) {
+                                playerVM.playRadioStation(station, modelContext: modelContext)
+                                dismissSearchResults()
+                            }
+                            .padding(.horizontal, 14)
+
+                            if station.persistentModelID != viewModel.stationResults.last?.persistentModelID {
+                                Divider()
+                                    .overlay(Color.white.opacity(0.12))
+                            }
                         }
                     }
                 }
@@ -181,7 +234,7 @@ struct RadioGlobeView: View {
             Image(systemName: "magnifyingglass")
                 .foregroundStyle(.secondary)
 
-            TextField("Search countries...", text: $viewModel.searchText)
+            TextField("Search countries or stations...", text: $viewModel.searchText)
                 .textInputAutocapitalization(.never)
                 .autocorrectionDisabled()
                 .foregroundStyle(.lucidWhite)
@@ -240,7 +293,9 @@ struct RadioGlobeView: View {
     }
 
     private func dismissSearchResults() {
+        searchTask?.cancel()
         viewModel.searchText = ""
+        viewModel.stationResults = []
     }
 }
 
@@ -259,7 +314,7 @@ private extension RadioCountry {
         }
 
         if text.contains("talk") {
-            return .orange
+            return .lucidOrange
         }
 
         if text.contains("mixed") {
@@ -278,9 +333,9 @@ private extension RadioCountry {
         case 2:
             return .purple
         case 3:
-            return .orange
+            return .lucidOrange
         default:
-            return .green
+            return .lucidGreen
         }
     }
 }

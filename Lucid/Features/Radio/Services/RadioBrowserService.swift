@@ -21,12 +21,13 @@ enum RadioBrowserError: LocalizedError {
     }
 }
 
-struct RadioBrowserStation: Codable {
+struct RadioBrowserStation: Decodable {
     let stationuuid: String
     let name: String
     let url: String
     let urlResolved: String?
     let favicon: String?
+    let homepage: String?
     let tags: String?
     let country: String?
     let countryCode: String?
@@ -67,6 +68,7 @@ struct RadioBrowserStation: Codable {
         url = try container.decode(String.self, forKey: .url)
         urlResolved = try container.decodeIfPresent(String.self, forKey: .urlResolved)
         favicon = try container.decodeIfPresent(String.self, forKey: .favicon)
+        homepage = try container.decodeIfPresent(String.self, forKey: .url)
         tags = try container.decodeIfPresent(String.self, forKey: .tags)
         country = try container.decodeIfPresent(String.self, forKey: .country)
         countryCode = try container.decodeIfPresent(String.self, forKey: .countryCode)
@@ -100,7 +102,7 @@ final class RadioBrowserService {
 
     private let modelContext: ModelContext?
     private let session: URLSession
-    private let baseURL = URL(string: "https://de1.api.radio-browser.info/json/")!
+    private let baseURL: URL
     private let decoder: JSONDecoder
     private var lastAPICallAt: Date?
     private(set) var servedOfflineCache = false
@@ -108,6 +110,10 @@ final class RadioBrowserService {
     init(modelContext: ModelContext?) {
         self.modelContext = modelContext
         self.session = URLSession.shared
+        guard let baseURL = URL(string: "https://de1.api.radio-browser.info/json/") else {
+            fatalError("Invalid Radio Browser base URL")
+        }
+        self.baseURL = baseURL
         decoder = JSONDecoder()
         decoder.keyDecodingStrategy = .convertFromSnakeCase
     }
@@ -214,7 +220,14 @@ final class RadioBrowserService {
             queryItems: stationFilterItems(hideBroken: true, limit: limit)
         )
 
-        let models = stations.map { $0.radioStation() }
+        let models: [RadioStation]
+        if let modelContext {
+            models = upsertStations(stations, context: modelContext)
+            try saveContext(context: modelContext)
+        } else {
+            models = stations.map { $0.radioStation() }
+        }
+
         guard !models.isEmpty else {
             throw RadioBrowserError.noResults
         }
@@ -359,7 +372,7 @@ final class RadioBrowserService {
     private func waitForRateLimitWindow() async throws {
         if let lastAPICallAt {
             let elapsed = Date().timeIntervalSince(lastAPICallAt)
-            let minimumInterval: TimeInterval = 0.5
+            let minimumInterval: TimeInterval = 2.0
             if elapsed < minimumInterval {
                 try await Task.sleep(nanoseconds: UInt64((minimumInterval - elapsed) * 1_000_000_000))
             }
@@ -475,6 +488,7 @@ private extension RadioBrowserStation {
             url: url,
             urlResolved: urlResolved?.nilIfEmpty,
             favicon: favicon?.nilIfEmpty,
+            homepage: homepage?.nilIfEmpty ?? "",
             tags: tags ?? "",
             country: country ?? "",
             countryCode: countryCode?.uppercased() ?? "",
@@ -486,7 +500,7 @@ private extension RadioBrowserStation {
             geoLong: geoLong,
             clickcount: clickcount ?? 0,
             votes: votes ?? 0,
-            lastCheckOk: lastCheckOk ?? false,
+            lastCheckOk: lastCheckOk ?? true,
             cachedAt: cachedAt
         )
     }
@@ -498,6 +512,7 @@ private extension RadioStation {
         url = apiStation.url
         urlResolved = apiStation.urlResolved?.nilIfEmpty
         favicon = apiStation.favicon?.nilIfEmpty
+        homepage = apiStation.homepage?.nilIfEmpty ?? ""
         tags = apiStation.tags ?? ""
         country = apiStation.country ?? ""
         countryCode = apiStation.countryCode?.uppercased() ?? ""
@@ -509,7 +524,7 @@ private extension RadioStation {
         geoLong = apiStation.geoLong
         clickcount = apiStation.clickcount ?? 0
         votes = apiStation.votes ?? 0
-        lastCheckOk = apiStation.lastCheckOk ?? false
+        lastCheckOk = apiStation.lastCheckOk ?? true
         self.cachedAt = cachedAt
     }
 }

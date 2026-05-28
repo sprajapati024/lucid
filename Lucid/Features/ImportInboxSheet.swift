@@ -89,12 +89,19 @@ struct ImportInboxSheet: View {
 
                     Button("Add All") {
                         manager.confirmImport(modelContext: modelContext)
-                        dismiss()
                     }
                     .foregroundColor(.lucidGreen)
                     .fontWeight(.semibold)
                     .disabled(manager.pendingFiles.isEmpty)
                 }
+            }
+            .alert("Import Failed", isPresented: Binding(
+                get: { manager.importError != nil },
+                set: { if !$0 { manager.importError = nil } }
+            )) {
+                Button("OK", role: .cancel) {}
+            } message: {
+                Text(manager.importError ?? "One or more songs could not be imported.")
             }
         }
     }

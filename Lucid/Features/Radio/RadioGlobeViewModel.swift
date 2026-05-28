@@ -9,6 +9,7 @@ final class RadioGlobeViewModel {
     var countries: [RadioCountry] = []
     var selectedCountry: RadioCountry?
     var searchText = ""
+    var stationResults: [RadioStation] = []
     var isLoading = false
     var isOffline = false
     var errorMessage: String?
@@ -33,6 +34,10 @@ final class RadioGlobeViewModel {
                 .filter { $0.countryName.localizedCaseInsensitiveContains(trimmedSearch) }
                 .prefix(5)
         )
+    }
+
+    var hasStationResults: Bool {
+        !stationResults.isEmpty
     }
 
     func loadCountries(autoRetry: Bool = true) async {
@@ -64,6 +69,20 @@ final class RadioGlobeViewModel {
 
     func clearSelection() {
         selectedCountry = nil
+    }
+
+    func searchStations(modelContext: ModelContext) async {
+        let trimmedSearch = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedSearch.isEmpty else {
+            stationResults = []
+            return
+        }
+
+        do {
+            stationResults = try await service.searchStations(query: trimmedSearch, limit: 10)
+        } catch {
+            stationResults = []
+        }
     }
 
     func selectRandomCountry() {

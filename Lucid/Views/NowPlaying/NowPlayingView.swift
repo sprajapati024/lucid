@@ -5,6 +5,7 @@ struct NowPlayingView: View {
     @EnvironmentObject var playerVM: PlayerViewModel
     @Environment(\.dismiss) private var dismiss
     @Environment(\.modelContext) private var modelContext
+    @Environment(\.openURL) private var openURL
     @ObservedObject private var radioService = RadioAudioService.shared
     @State private var isDraggingSeekBar = false
     @State private var seekPosition: Double = 0
@@ -55,21 +56,23 @@ struct NowPlayingView: View {
                         dismiss()
                     } label: {
                         Image(systemName: "chevron.down")
-                            .font(.system(size: 20, weight: .medium))
+                            .font(.title3.weight(.medium))
                             .foregroundColor(.lucidGray)
                     }
+                    .accessibilityLabel("Dismiss now playing")
                     Spacer()
                     Text("Now Playing")
-                        .font(.system(size: 14, weight: .semibold))
+                        .font(.subheadline.weight(.semibold))
                         .foregroundColor(.lucidGray)
                     Spacer()
                     Button {
                         // Settings — future
                     } label: {
                         Image(systemName: "ellipsis")
-                            .font(.system(size: 20, weight: .medium))
+                            .font(.title3.weight(.medium))
                             .foregroundColor(.lucidGray)
                     }
+                    .accessibilityLabel("More options")
                 }
                 .padding(.horizontal, 24)
                 .padding(.top, 16)
@@ -87,12 +90,12 @@ struct NowPlayingView: View {
                 // Song info
                 VStack(spacing: 4) {
                     Text(song?.title ?? "Not Playing")
-                        .font(.system(size: 22, weight: .bold))
+                        .font(.title3.weight(.bold))
                         .foregroundColor(.lucidWhite)
                         .lineLimit(1)
 
                     Text(song?.artist ?? "—")
-                        .font(.system(size: 17))
+                        .font(.body)
                         .foregroundColor(.lucidGray)
                         .lineLimit(1)
                 }
@@ -121,12 +124,12 @@ struct NowPlayingView: View {
 
                     HStack {
                         Text(formatTime(isDraggingSeekBar ? seekPosition : playerVM.currentTime))
-                            .font(.system(size: 12))
+                            .font(.caption)
                             .foregroundColor(.lucidGray)
                             .monospacedDigit()
                         Spacer()
                         Text(formatTime(playerVM.duration))
-                            .font(.system(size: 12))
+                            .font(.caption)
                             .foregroundColor(.lucidGray)
                             .monospacedDigit()
                     }
@@ -141,41 +144,47 @@ struct NowPlayingView: View {
                         playerVM.toggleShuffle()
                     } label: {
                         Image(systemName: "shuffle")
-                            .font(.system(size: 22))
+                            .font(.title3)
                             .foregroundColor(playerVM.isShuffled ? .lucidGreen : .lucidGray)
                     }
+                    .accessibilityLabel(playerVM.isShuffled ? "Turn shuffle off" : "Turn shuffle on")
 
                     Button {
                         playerVM.previous()
                     } label: {
                         Image(systemName: "backward.fill")
-                            .font(.system(size: 30))
+                            .font(.title)
                             .foregroundColor(.lucidWhite)
                     }
+                    .accessibilityLabel("Previous track")
 
                     Button {
                         playerVM.togglePlayPause()
                     } label: {
                         Image(systemName: playerVM.isPlaying ? "pause.circle.fill" : "play.circle.fill")
-                            .font(.system(size: 68))
+                            .font(.largeTitle)
+                            .imageScale(.large)
                             .foregroundColor(.lucidWhite)
                     }
+                    .accessibilityLabel(playerVM.isPlaying ? "Pause" : "Play")
 
                     Button {
                         playerVM.next()
                     } label: {
                         Image(systemName: "forward.fill")
-                            .font(.system(size: 30))
+                            .font(.title)
                             .foregroundColor(.lucidWhite)
                     }
+                    .accessibilityLabel("Next track")
 
                     Button {
                         playerVM.cycleRepeatMode()
                     } label: {
                         Image(systemName: repeatIcon)
-                            .font(.system(size: 22))
+                            .font(.title3)
                             .foregroundColor(repeatIconColor)
                     }
+                    .accessibilityLabel("Repeat mode")
                 }
                 .padding(.horizontal, 24)
 
@@ -184,23 +193,24 @@ struct NowPlayingView: View {
                 // Bottom row: heart + volume + sleep timer + queue
                 HStack(spacing: 16) {
                     Button {
-                        playerVM.toggleFavorite()
+                        toggleLibraryFavorite()
                     } label: {
                         Image(systemName: playerVM.currentSong?.isFavorite == true ? "heart.fill" : "heart")
-                            .font(.system(size: 22))
+                            .font(.title3)
                             .foregroundColor(playerVM.currentSong?.isFavorite == true ? .lucidGreen : .lucidGray)
                     }
+                    .accessibilityLabel(playerVM.currentSong?.isFavorite == true ? "Remove from favorites" : "Add to favorites")
 
                     HStack(spacing: 8) {
                         Image(systemName: "speaker.fill")
-                            .font(.system(size: 12))
+                            .font(.caption)
                             .foregroundColor(.lucidGray)
 
                         VolumeSliderView()
                             .frame(height: 32)
 
                         Image(systemName: "speaker.wave.3.fill")
-                            .font(.system(size: 12))
+                            .font(.caption)
                             .foregroundColor(.lucidGray)
                     }
 
@@ -209,24 +219,26 @@ struct NowPlayingView: View {
                     } label: {
                         HStack(spacing: 4) {
                             Image(systemName: sleepTimerManager.isActive ? "moon.fill" : "moon")
-                                .font(.system(size: 22))
+                                .font(.title3)
                             if sleepTimerManager.isActive {
                                 Text(sleepTimerManager.remainingFormatted)
-                                    .font(.system(size: 12, weight: .semibold))
+                                    .font(.caption.weight(.semibold))
                                     .monospacedDigit()
                             }
                         }
                         .foregroundColor(sleepTimerManager.isActive ? .lucidGreen : .lucidGray)
                     }
+                    .accessibilityLabel(sleepTimerManager.isActive ? "Sleep timer, \(sleepTimerManager.remainingFormatted) remaining" : "Sleep timer")
 
                     // Queue button
                     Button {
                         showQueue = true
                     } label: {
                         Image(systemName: "list.bullet")
-                            .font(.system(size: 22))
+                            .font(.title3)
                             .foregroundColor(.lucidGray)
                     }
+                    .accessibilityLabel("Queue")
                 }
                 .padding(.horizontal, 40)
                 .padding(.bottom, 40)
@@ -258,14 +270,15 @@ struct NowPlayingView: View {
                         dismiss()
                     } label: {
                         Image(systemName: "chevron.down")
-                            .font(.system(size: 20, weight: .medium))
+                            .font(.title3.weight(.medium))
                             .foregroundColor(.lucidGray)
                     }
+                    .accessibilityLabel("Dismiss now playing")
 
                     Spacer()
 
                     Text("Radio Mode")
-                        .font(.system(size: 14, weight: .semibold))
+                        .font(.subheadline.weight(.semibold))
                         .foregroundColor(.lucidGray)
 
                     Spacer()
@@ -285,7 +298,8 @@ struct NowPlayingView: View {
                         .shadow(color: .black.opacity(0.45), radius: 20, y: 10)
 
                     Image(systemName: "dot.radiowaves.left.and.right")
-                        .font(.system(size: 96, weight: .medium))
+                        .font(.largeTitle.weight(.medium))
+                        .imageScale(.large)
                         .foregroundColor(.lucidGreen)
                         .opacity(livePulse ? 1 : 0.55)
                 }
@@ -301,7 +315,7 @@ struct NowPlayingView: View {
                             .opacity(livePulse ? 1 : 0.35)
 
                         Text(radioService.isBuffering ? "BUFFERING" : "LIVE")
-                            .font(.system(size: 12, weight: .bold))
+                            .font(.caption.weight(.bold))
                             .foregroundColor(.lucidGreen)
                     }
                     .padding(.horizontal, 12)
@@ -309,13 +323,13 @@ struct NowPlayingView: View {
                     .background(Color.lucidGreen.opacity(0.14), in: Capsule())
 
                     Text(station?.name ?? "Radio")
-                        .font(.system(size: 24, weight: .bold))
+                        .font(.title2.weight(.bold))
                         .foregroundColor(.lucidWhite)
                         .multilineTextAlignment(.center)
                         .lineLimit(2)
 
                     Text(radioStationDetail)
-                        .font(.system(size: 16))
+                        .font(.body)
                         .foregroundColor(.lucidGray)
                         .lineLimit(1)
                 }
@@ -328,19 +342,33 @@ struct NowPlayingView: View {
                         toggleRadioFavorite()
                     } label: {
                         Image(systemName: station?.isFavorite == true ? "heart.fill" : "heart")
-                            .font(.system(size: 28))
+                            .font(.title)
                             .foregroundColor(station?.isFavorite == true ? .lucidGreen : .lucidGray)
                     }
                     .disabled(station == nil)
+                    .accessibilityLabel(station?.isFavorite == true ? "Remove from favorites" : "Add to favorites")
+
+                    if let websiteURL {
+                        Button {
+                            openURL(websiteURL)
+                        } label: {
+                            Image(systemName: "safari")
+                                .font(.title)
+                                .foregroundColor(.lucidGray)
+                        }
+                        .accessibilityLabel("Open station website")
+                    }
 
                     Button {
                         playerVM.stopRadio()
                         dismiss()
                     } label: {
                         Image(systemName: "stop.circle.fill")
-                            .font(.system(size: 76))
+                            .font(.largeTitle)
+                            .imageScale(.large)
                             .foregroundColor(.lucidWhite)
                     }
+                    .accessibilityLabel("Stop radio")
                 }
                 .padding(.horizontal, 24)
 
@@ -348,7 +376,7 @@ struct NowPlayingView: View {
 
                 HStack(spacing: 10) {
                     Image(systemName: "speaker.fill")
-                        .font(.system(size: 13))
+                        .font(.caption)
                         .foregroundColor(.lucidGray)
 
                     Slider(
@@ -361,7 +389,7 @@ struct NowPlayingView: View {
                     .tint(.lucidGreen)
 
                     Image(systemName: "speaker.wave.3.fill")
-                        .font(.system(size: 13))
+                        .font(.caption)
                         .foregroundColor(.lucidGray)
                 }
                 .padding(.horizontal, 40)
@@ -383,6 +411,32 @@ struct NowPlayingView: View {
         ]
         .compactMap { $0 }
         .joined(separator: " • ")
+    }
+
+    private var websiteURL: URL? {
+        guard let homepage = station?.homepage.trimmingCharacters(in: .whitespacesAndNewlines),
+              !homepage.isEmpty else {
+            return nil
+        }
+
+        if let url = URL(string: homepage), url.scheme != nil {
+            return url
+        }
+
+        return URL(string: "https://\(homepage)")
+    }
+
+    private func toggleLibraryFavorite() {
+        guard let song = playerVM.currentSong else { return }
+
+        song.isFavorite.toggle()
+
+        do {
+            try modelContext.save()
+        } catch {
+            song.isFavorite.toggle()
+            print("Failed to save favorite: \(error)")
+        }
     }
 
     private func toggleRadioFavorite() {
@@ -451,7 +505,7 @@ private struct QueueSheetView: View {
                                         .foregroundColor(.lucidWhite)
                                         .lineLimit(1)
                                     Text(current.artist)
-                                        .font(.system(size: 13))
+                                        .font(.caption)
                                         .foregroundColor(.lucidGray)
                                         .lineLimit(1)
                                 }

@@ -23,7 +23,10 @@ struct AlbumsView: View {
     private var albums: [AlbumGroup] {
         Dictionary(grouping: songs) { song in
             let album = song.albumTitle?.trimmingCharacters(in: .whitespacesAndNewlines)
-            return album?.isEmpty == false ? album! : "Unknown Album"
+            if let albumName = album, !albumName.isEmpty {
+                return albumName
+            }
+            return "Unknown Album"
         }
         .map { name, songs in
             let sortedSongs = songs.sortedForAlbum()
@@ -77,17 +80,17 @@ private struct AlbumCardView: View {
                 .frame(maxWidth: .infinity)
 
             Text(album.name)
-                .font(.system(size: 15, weight: .bold))
+                .font(.subheadline.weight(.bold))
                 .foregroundColor(.lucidWhite)
                 .lineLimit(2)
 
             Text(album.artist)
-                .font(.system(size: 13))
+                .font(.caption)
                 .foregroundColor(.lucidGray)
                 .lineLimit(1)
 
             Text("\(album.songCount) \(album.songCount == 1 ? "song" : "songs")")
-                .font(.system(size: 12))
+                .font(.caption2)
                 .foregroundColor(.lucidGray)
         }
         .padding(10)

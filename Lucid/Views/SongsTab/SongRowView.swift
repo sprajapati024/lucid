@@ -1,4 +1,5 @@
 import SwiftUI
+import SwiftData
 
 struct SongRowView: View {
     let song: Song
@@ -6,6 +7,7 @@ struct SongRowView: View {
     var showsContextMenu = true
 
     @EnvironmentObject var playerVM: PlayerViewModel
+    @Environment(\.modelContext) private var modelContext
 
     private var isCurrentlyPlaying: Bool {
         playerVM.currentSong?.id == song.id
@@ -32,7 +34,7 @@ struct SongRowView: View {
                 }
 
                 Button {
-                    song.isFavorite.toggle()
+                    toggleFavorite()
                 } label: {
                     Label(song.isFavorite ? "Unfavorite" : "Favorite", systemImage: song.isFavorite ? "heart.fill" : "heart")
                 }
@@ -51,12 +53,12 @@ struct SongRowView: View {
 
                 VStack(alignment: .leading, spacing: 2) {
                     Text(song.title)
-                        .font(.system(size: 16, weight: isCurrentlyPlaying ? .bold : .medium))
+                        .font(.body.weight(isCurrentlyPlaying ? .bold : .medium))
                         .foregroundColor(isCurrentlyPlaying ? .lucidGreen : .lucidWhite)
                         .lineLimit(1)
 
                     Text(song.artist)
-                        .font(.system(size: 13))
+                        .font(.caption)
                         .foregroundColor(.lucidGray)
                         .lineLimit(1)
                 }
@@ -65,12 +67,12 @@ struct SongRowView: View {
 
                 if song.isFavorite {
                     Image(systemName: "heart.fill")
-                        .font(.system(size: 11))
+                        .font(.caption2)
                         .foregroundColor(.lucidGreen)
                 }
 
                 Text(song.durationFormatted)
-                    .font(.system(size: 12))
+                    .font(.caption)
                     .foregroundColor(.lucidGray)
                     .monospacedDigit()
             }
@@ -78,5 +80,16 @@ struct SongRowView: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+    }
+
+    private func toggleFavorite() {
+        song.isFavorite.toggle()
+
+        do {
+            try modelContext.save()
+        } catch {
+            song.isFavorite.toggle()
+            print("Failed to save favorite: \(error)")
+        }
     }
 }

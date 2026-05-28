@@ -8,6 +8,12 @@ struct PlaylistsGridView: View {
     @State private var showCreateSheet = false
     @State private var playlistToDelete: Playlist?
     @State private var showDeleteAlert = false
+    @State private var showDeleteError = false
+
+    private let columns = [
+        GridItem(.flexible(), spacing: 16),
+        GridItem(.flexible(), spacing: 16)
+    ]
 
     var body: some View {
         NavigationStack {
@@ -24,25 +30,25 @@ struct PlaylistsGridView: View {
                         showCreateSheet = true
                     }
                 } else {
-                    List {
-                        ForEach(playlists) { playlist in
-                            NavigationLink(destination: PlaylistDetailView(playlist: playlist)) {
-                                PlaylistCardView(playlist: playlist)
-                            }
-                            .listRowBackground(Color.lucidBlack)
-                            .listRowSeparatorTint(Color.lucidCard)
-                            .swipeActions(edge: .trailing, allowsFullSwipe: true) {
-                                Button(role: .destructive) {
-                                    playlistToDelete = playlist
-                                    showDeleteAlert = true
-                                } label: {
-                                    Label("Delete", systemImage: "trash")
+                    ScrollView {
+                        LazyVGrid(columns: columns, spacing: 16) {
+                            ForEach(playlists) { playlist in
+                                NavigationLink(destination: PlaylistDetailView(playlist: playlist)) {
+                                    PlaylistCardView(playlist: playlist)
+                                }
+                                .buttonStyle(.plain)
+                                .contextMenu {
+                                    Button(role: .destructive) {
+                                        playlistToDelete = playlist
+                                        showDeleteAlert = true
+                                    } label: {
+                                        Label("Delete", systemImage: "trash")
+                                    }
                                 }
                             }
                         }
+                        .padding(16)
                     }
-                    .listStyle(.plain)
-                    .scrollContentBackground(.hidden)
                 }
             }
             .navigationTitle("Playlists")
@@ -72,6 +78,11 @@ struct PlaylistsGridView: View {
             } message: {
                 Text("This will permanently remove \"\(playlistToDelete?.name ?? "")\". Songs will stay in your library.")
             }
+            .alert("Delete Failed", isPresented: $showDeleteError) {
+                Button("OK", role: .cancel) {}
+            } message: {
+                Text("Could not delete the playlist. Please try again.")
+            }
         }
     }
 
@@ -81,6 +92,13 @@ struct PlaylistsGridView: View {
             playerVM.stop()
         }
         modelContext.delete(playlist)
-        playlistToDelete = nil
+
+        do {
+            try modelContext.save()
+            playlistToDelete = nil
+        } catch {
+            modelContext.rollback()
+            showDeleteError = true
+        }
     }
 }

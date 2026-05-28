@@ -286,8 +286,17 @@ class PlayerViewModel: ObservableObject {
         postPlaybackStateNotification()
     }
 
-    func toggleFavorite() {
-        currentSong?.isFavorite.toggle()
+    func toggleFavorite(modelContext: ModelContext) {
+        guard let currentSong else { return }
+
+        currentSong.isFavorite.toggle()
+
+        do {
+            try modelContext.save()
+        } catch {
+            currentSong.isFavorite.toggle()
+            print("Failed to save favorite: \(error)")
+        }
     }
 
     func playRadioStation(_ station: RadioStation, modelContext: ModelContext) {

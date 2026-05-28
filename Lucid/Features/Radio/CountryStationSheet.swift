@@ -11,6 +11,7 @@ struct CountryStationSheet: View {
     @State private var isLoading = false
     @State private var errorMessage: String?
     @State private var playbackErrorMessage: String?
+    @State private var sortOrder: StationSortOrder = .popular
 
     init(country: RadioCountry, highlightedStationUUID: String? = nil) {
         self.country = country
@@ -37,7 +38,7 @@ struct CountryStationSheet: View {
                     )
                 } else {
                     ScrollViewReader { scrollProxy in
-                        List(stations) { station in
+                        List(sortedStations) { station in
                             StationRowView(
                                 station: station,
                                 isHighlighted: station.stationuuid == highlightedStationUUID
@@ -50,7 +51,7 @@ struct CountryStationSheet: View {
                         .onAppear {
                             scrollToHighlightedStation(with: scrollProxy)
                         }
-                        .onChange(of: stations.map(\.stationuuid)) { _, _ in
+                        .onChange(of: sortedStations.map(\.stationuuid)) { _, _ in
                             scrollToHighlightedStation(with: scrollProxy)
                         }
                     }
@@ -105,6 +106,14 @@ struct CountryStationSheet: View {
 
             Spacer()
 
+            Picker("Sort", selection: $sortOrder) {
+                ForEach(StationSortOrder.allCases, id: \.self) { order in
+                    Text(order.rawValue).tag(order)
+                }
+            }
+            .pickerStyle(.segmented)
+            .frame(maxWidth: 220)
+
             Text("\(stations.isEmpty ? country.stationCount : stations.count)")
                 .font(.subheadline.weight(.semibold))
                 .padding(.horizontal, 10)
@@ -116,6 +125,42 @@ struct CountryStationSheet: View {
         .padding(.horizontal)
         .padding(.vertical, 10)
         .background(.bar)
+    }
+
+    private var sortedStations: [RadioStation] {
+        let sorted: [RadioStation]
+
+        switch sortOrder {
+        case .popular:
+            sorted = stations.sorted { lhs, rhs in
+                if lhs.clickcount == rhs.clickcount {
+                    return lhs.name.localizedCaseInsensitiveCompare(rhs.name) == .orderedAscending
+                }
+                return lhs.clickcount > rhs.clickcount
+            }
+        case .recent:
+            sorted = stations.sorted { lhs, rhs in
+                switch (lhs.lastPlayed, rhs.lastPlayed) {
+                case let (lhsDate?, rhsDate?):
+                    return lhsDate > rhsDate
+                case (_?, nil):
+                    return true
+                case (nil, _?):
+                    return false
+                case (nil, nil):
+                    return lhs.name.localizedCaseInsensitiveCompare(rhs.name) == .orderedAscending
+                }
+            }
+        case .alphabetical:
+            sorted = stations.sorted {
+                $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending
+            }
+        }
+
+        return sorted.sorted { lhs, rhs in
+            if lhs.isOffline == rhs.isOffline { return false }
+            return !lhs.isOffline && rhs.isOffline
+        }
     }
 
     private func errorView(_ message: String) -> some View {
@@ -171,6 +216,12 @@ struct CountryStationSheet: View {
 
         playerVM.playRadioStation(station, modelContext: modelContext)
     }
+}
+
+private enum StationSortOrder: String, CaseIterable {
+    case popular = "Popular"
+    case recent = "Recent"
+    case alphabetical = "A-Z"
 }
 
 private struct SkeletonStationRow: View {

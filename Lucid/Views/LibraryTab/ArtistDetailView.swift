@@ -8,7 +8,10 @@ struct ArtistDetailView: View {
     private var albumSections: [AlbumGroup] {
         Dictionary(grouping: artist.songs) { song in
             let album = song.albumTitle?.trimmingCharacters(in: .whitespacesAndNewlines)
-            return album?.isEmpty == false ? album! : "Unknown Album"
+            if let albumName = album, !albumName.isEmpty {
+                return albumName
+            }
+            return "Unknown Album"
         }
         .map { name, songs in
             let sortedSongs = songs.sortedForAlbum()
@@ -31,10 +34,10 @@ struct ArtistDetailView: View {
                 Section {
                     VStack(alignment: .leading, spacing: 4) {
                         Text(artist.name)
-                            .font(.system(size: 28, weight: .bold))
+                            .font(.title.weight(.bold))
                             .foregroundColor(.lucidWhite)
                         Text("\(artist.songCount) \(artist.songCount == 1 ? "song" : "songs") · \(artist.albumCount) \(artist.albumCount == 1 ? "album" : "albums")")
-                            .font(.system(size: 14))
+                            .font(.subheadline)
                             .foregroundColor(.lucidGray)
                     }
                     .padding(.vertical, 14)
@@ -49,19 +52,19 @@ struct ArtistDetailView: View {
                             } label: {
                                 HStack(spacing: 12) {
                                     Text("\(index + 1)")
-                                        .font(.system(size: 13))
+                                        .font(.caption)
                                         .foregroundColor(.lucidGray)
                                         .frame(width: 24, alignment: .trailing)
 
                                     Text(song.title)
-                                        .font(.system(size: 15, weight: .medium))
+                                        .font(.subheadline.weight(.medium))
                                         .foregroundColor(playerVM.currentSong?.id == song.id ? .lucidGreen : .lucidWhite)
                                         .lineLimit(1)
 
                                     Spacer()
 
                                     Text(song.durationFormatted)
-                                        .font(.system(size: 12))
+                                        .font(.caption)
                                         .foregroundColor(.lucidGray)
                                         .monospacedDigit()
                                 }

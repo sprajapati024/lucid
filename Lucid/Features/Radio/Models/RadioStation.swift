@@ -8,6 +8,7 @@ final class RadioStation {
     var url: String
     var urlResolved: String?
     var favicon: String?
+    var homepage: String = ""
     var tags: String
     var country: String
     var countryCode: String
@@ -31,6 +32,7 @@ final class RadioStation {
         url: String,
         urlResolved: String? = nil,
         favicon: String? = nil,
+        homepage: String = "",
         tags: String,
         country: String,
         countryCode: String,
@@ -53,6 +55,7 @@ final class RadioStation {
         self.url = url
         self.urlResolved = urlResolved
         self.favicon = favicon
+        self.homepage = homepage
         self.tags = tags
         self.country = country
         self.countryCode = countryCode

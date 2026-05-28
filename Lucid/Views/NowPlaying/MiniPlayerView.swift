@@ -32,12 +32,12 @@ struct MiniPlayerView: View {
                 // Song info
                 VStack(alignment: .leading, spacing: 2) {
                     Text(playerVM.currentSong?.title ?? "—")
-                        .font(.system(size: 14, weight: .medium))
+                        .font(.subheadline.weight(.medium))
                         .foregroundColor(.lucidWhite)
                         .lineLimit(1)
 
                     Text(playerVM.currentSong?.artist ?? "—")
-                        .font(.system(size: 12))
+                        .font(.caption)
                         .foregroundColor(.lucidGray)
                         .lineLimit(1)
                 }
@@ -49,20 +49,22 @@ struct MiniPlayerView: View {
                     playerVM.togglePlayPause()
                 } label: {
                     Image(systemName: playerVM.isPlaying ? "pause.fill" : "play.fill")
-                        .font(.system(size: 22))
+                        .font(.title3)
                         .foregroundColor(.lucidWhite)
                         .frame(width: 44, height: 44)
                 }
+                .accessibilityLabel(playerVM.isPlaying ? "Pause" : "Play")
 
                 // Next
                 Button {
                     playerVM.next()
                 } label: {
                     Image(systemName: "forward.fill")
-                        .font(.system(size: 16))
+                        .font(.body)
                         .foregroundColor(.lucidWhite)
                         .frame(width: 40, height: 40)
                 }
+                .accessibilityLabel("Next track")
             }
             .padding(.horizontal, 12)
             .padding(.vertical, 6)

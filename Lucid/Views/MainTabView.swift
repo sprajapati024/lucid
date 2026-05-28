@@ -27,12 +27,6 @@ struct MainTabView: View {
                         Label("Radio", systemImage: "globe")
                     }
                     .tag(2)
-
-                SearchView()
-                    .tabItem {
-                        Label("Search", systemImage: "magnifyingglass")
-                    }
-                    .tag(3)
             }
             .tint(Color.lucidGreen)
 
@@ -96,6 +90,8 @@ extension Color {
     static let lucidCard = Color(hex: "1E1E1E")
     static let lucidGray = Color(hex: "B3B3B3")
     static let lucidWhite = Color(hex: "FAFAFA")
+    static let lucidRed = Color(hex: "FF453A")
+    static let lucidOrange = Color(hex: "FF9F0A")
 
     init(hex: String) {
         let hex = hex.trimmingCharacters(in: CharacterSet.alphanumerics.inverted)
