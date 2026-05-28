@@ -380,6 +380,8 @@ class PlayerViewModel: ObservableObject {
     }
 
     private func handleTrackEnd() {
+        currentSong?.playCount += 1
+
         switch repeatMode {
         case .one:
             seek(to: 0)

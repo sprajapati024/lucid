@@ -17,6 +17,7 @@ class MetadataExtractor {
             var title = sourceURL.deletingPathExtension().lastPathComponent
             var artist = "Unknown Artist"
             var albumTitle: String? = nil
+            var trackNumber: Int? = nil
             var albumArt: Data? = nil
             var duration: Double = 0
 
@@ -52,6 +53,8 @@ class MetadataExtractor {
                 }
             }
 
+            trackNumber = self.extractTrackNumber(from: asset)
+
             // Copy file to app's Documents/Music directory
             let destPath = self.copyToDocuments(sourceURL)
 
@@ -59,6 +62,7 @@ class MetadataExtractor {
                 title: title,
                 artist: artist,
                 albumTitle: albumTitle,
+                trackNumber: trackNumber,
                 duration: duration,
                 fileURL: destPath,
                 albumArt: albumArt
@@ -111,5 +115,26 @@ class MetadataExtractor {
 
         // Return relative path from Documents
         return "Music/\(finalURL.lastPathComponent)"
+    }
+
+    private func extractTrackNumber(from asset: AVAsset) -> Int? {
+        for item in asset.metadata {
+            let identifier = item.identifier?.rawValue.lowercased() ?? ""
+            let key = item.key.map { String(describing: $0).lowercased() } ?? ""
+            guard identifier.contains("track") || key.contains("track") else { continue }
+
+            if let number = item.numberValue?.intValue {
+                return number
+            }
+
+            if let string = item.stringValue {
+                let firstComponent = string.split(separator: "/").first.map(String.init) ?? string
+                if let number = Int(firstComponent.trimmingCharacters(in: .whitespacesAndNewlines)) {
+                    return number
+                }
+            }
+        }
+
+        return nil
     }
 }

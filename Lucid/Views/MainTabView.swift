@@ -10,9 +10,9 @@ struct MainTabView: View {
     var body: some View {
         ZStack(alignment: .bottom) {
             TabView(selection: $selectedTab) {
-                SongsListView()
+                LibraryView()
                     .tabItem {
-                        Label("Songs", systemImage: "music.note.list")
+                        Label("Library", systemImage: "music.note.list")
                     }
                     .tag(0)
 

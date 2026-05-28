@@ -4,8 +4,22 @@ struct EmptyStateView: View {
     let icon: String
     let title: String
     let message: String
-    let actionLabel: String
-    let action: () -> Void
+    let actionLabel: String?
+    let action: (() -> Void)?
+
+    init(
+        icon: String,
+        title: String,
+        message: String,
+        actionLabel: String? = nil,
+        action: (() -> Void)? = nil
+    ) {
+        self.icon = icon
+        self.title = title
+        self.message = message
+        self.actionLabel = actionLabel
+        self.action = action
+    }
 
     var body: some View {
         VStack(spacing: 20) {
@@ -25,17 +39,19 @@ struct EmptyStateView: View {
                     .padding(.horizontal, 40)
             }
 
-            Button(action: action) {
-                HStack(spacing: 8) {
-                    Image(systemName: "plus.circle.fill")
-                    Text(actionLabel)
+            if let actionLabel, let action {
+                Button(action: action) {
+                    HStack(spacing: 8) {
+                        Image(systemName: "plus.circle.fill")
+                        Text(actionLabel)
+                    }
+                    .font(.system(size: 16, weight: .semibold))
+                    .foregroundColor(.lucidBlack)
+                    .padding(.horizontal, 24)
+                    .padding(.vertical, 12)
+                    .background(Color.lucidGreen)
+                    .clipShape(Capsule())
                 }
-                .font(.system(size: 16, weight: .semibold))
-                .foregroundColor(.lucidBlack)
-                .padding(.horizontal, 24)
-                .padding(.vertical, 12)
-                .background(Color.lucidGreen)
-                .clipShape(Capsule())
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
