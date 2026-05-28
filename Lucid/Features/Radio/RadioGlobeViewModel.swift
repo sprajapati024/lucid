@@ -12,6 +12,7 @@ final class RadioGlobeViewModel {
     var isLoading = false
     var isOffline = false
     var errorMessage: String?
+    var currentStationToPlay: RadioStation?
 
     private let service: RadioBrowserService
 
@@ -68,6 +69,26 @@ final class RadioGlobeViewModel {
     func selectRandomCountry() {
         guard let country = countries.randomElement() else { return }
         selectCountry(country)
+    }
+
+    func playRandomStation(modelContext: ModelContext) async {
+        isLoading = true
+        errorMessage = nil
+
+        do {
+            let station = try await RadioBrowserService(modelContext: modelContext)
+                .getRandomStation()
+
+            station.lastPlayed = Date()
+            try modelContext.save()
+
+            isLoading = false
+            currentStationToPlay = station
+        } catch {
+            modelContext.rollback()
+            isLoading = false
+            errorMessage = "Couldn't find a random station. Try again."
+        }
     }
 
     private func isNetworkError(_ error: Error) -> Bool {

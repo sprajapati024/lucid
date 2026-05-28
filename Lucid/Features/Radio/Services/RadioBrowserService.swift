@@ -243,6 +243,10 @@ final class RadioBrowserService {
     }
 
     func getRandomStation() async throws -> RadioStation {
+        guard let modelContext else {
+            throw RadioBrowserError.invalidResponse("No ModelContext available")
+        }
+
         let stations: [RadioBrowserStation] = try await request(
             path: "stations",
             queryItems: stationFilterItems(hideBroken: true, limit: 1, random: true)
@@ -252,7 +256,9 @@ final class RadioBrowserService {
             throw RadioBrowserError.noResults
         }
 
-        return station.radioStation()
+        let model = upsertStation(station, cachedAt: Date(), context: modelContext)
+        try saveContext(context: modelContext)
+        return model
     }
 
     func reportStationClick(uuid: String) async throws {

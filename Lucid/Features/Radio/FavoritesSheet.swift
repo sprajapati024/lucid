@@ -34,7 +34,11 @@ struct FavoritesSheet: View {
                                 selectedStationCountry = selection(for: station)
                             }
                         }
-                        .onDelete(perform: deleteFavorites)
+                        .onDelete { indexSet in
+                            for index in indexSet {
+                                unfavoriteStation(sortedFavoriteStations[index])
+                            }
+                        }
                     }
                     .listStyle(.plain)
                 }
@@ -93,12 +97,16 @@ struct FavoritesSheet: View {
         .background(.bar)
     }
 
-    private func deleteFavorites(at offsets: IndexSet) {
-        for index in offsets {
-            modelContext.delete(sortedFavoriteStations[index])
-        }
+    private func unfavoriteStation(_ station: RadioStation) {
+        station.isFavorite = false
+        station.dateAdded = nil
 
-        try? modelContext.save()
+        do {
+            try modelContext.save()
+        } catch {
+            modelContext.rollback()
+            print("Failed to unfavorite station: \(error)")
+        }
     }
 
     private func selection(for station: RadioStation) -> FavoriteStationCountrySelection {

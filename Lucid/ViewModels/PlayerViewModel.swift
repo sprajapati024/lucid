@@ -23,6 +23,13 @@ class PlayerViewModel: ObservableObject {
     @Published var isRadioMode = false
     @Published var currentRadioStation: RadioStation?
     @Published var radioIsBuffering = false
+    @Published var savedCurrentSong: Song?
+    @Published var savedQueue: [Song] = []
+    @Published var savedQueueIndex: Int = 0
+    @Published var savedCurrentTime: Double = 0
+    @Published var savedIsPlaying: Bool = false
+    @Published var savedIsShuffled: Bool = false
+    @Published var savedRepeatModeRaw: String = "off"
 
     private var player: AVAudioPlayer?
     private var displayLink: CADisplayLink?
@@ -284,7 +291,20 @@ class PlayerViewModel: ObservableObject {
     }
 
     func playRadioStation(_ station: RadioStation, modelContext: ModelContext) {
-        stop()
+        if !isRadioMode {
+            if let song = currentSong {
+                savedCurrentSong = song
+                savedQueue = queue
+                savedQueueIndex = queueIndex
+                savedCurrentTime = currentTime
+                savedIsPlaying = isPlaying
+                savedIsShuffled = isShuffled
+                savedRepeatModeRaw = repeatModeSerialized
+            }
+
+            stop()
+        }
+
         isRadioMode = true
         currentRadioStation = station
         radioIsBuffering = true
@@ -301,6 +321,11 @@ class PlayerViewModel: ObservableObject {
         isPlaying = false
         showNowPlaying = false
         clearNowPlayingInfo()
+
+        if let savedCurrentSong {
+            restoreLibraryPlayback(from: savedCurrentSong)
+        }
+
         postPlaybackStateNotification()
     }
 
@@ -332,6 +357,36 @@ class PlayerViewModel: ObservableObject {
     }
 
     // MARK: - Private
+
+    private func restoreLibraryPlayback(from song: Song) {
+        var queueToRestore = savedQueue
+        if !queueToRestore.contains(where: { $0.id == song.id }) {
+            queueToRestore.insert(song, at: min(savedQueueIndex, queueToRestore.count))
+        }
+
+        queue = queueToRestore
+        originalQueue = queueToRestore
+        queueIndex = min(max(savedQueueIndex, 0), max(queueToRestore.count - 1, 0))
+        isShuffled = savedIsShuffled
+        repeatMode = repeatMode(from: savedRepeatModeRaw)
+        syncQueueDisplayState()
+
+        loadAndPlay(song)
+        seek(to: savedCurrentTime)
+        if savedIsPlaying {
+            play()
+        } else {
+            pause()
+        }
+
+        savedCurrentSong = nil
+        savedQueue = []
+        savedQueueIndex = 0
+        savedCurrentTime = 0
+        savedIsPlaying = false
+        savedIsShuffled = false
+        savedRepeatModeRaw = "off"
+    }
 
     private func loadAndPlay(_ song: Song) {
         stopCurrentAudioForReload()

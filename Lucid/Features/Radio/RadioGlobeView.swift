@@ -1,7 +1,10 @@
 import MapKit
+import SwiftData
 import SwiftUI
 
 struct RadioGlobeView: View {
+    @Environment(\.modelContext) private var modelContext
+    @EnvironmentObject private var playerVM: PlayerViewModel
     @Bindable var viewModel: RadioGlobeViewModel
 
     @State private var cameraPosition: MapCameraPosition = .automatic
@@ -96,17 +99,21 @@ struct RadioGlobeView: View {
                     .accessibilityLabel("Favorites")
 
                     Button {
-                        viewModel.selectRandomCountry()
-                        if let country = viewModel.selectedCountry {
-                            fly(to: country)
+                        Task {
+                            await viewModel.playRandomStation(modelContext: modelContext)
                         }
                     } label: {
                         Image(systemName: "shuffle")
                     }
-                    .disabled(viewModel.countries.isEmpty)
-                    .accessibilityLabel("Random country")
+                    .disabled(viewModel.isLoading)
+                    .accessibilityLabel("Random station")
                 }
             }
+        }
+        .onChange(of: viewModel.currentStationToPlay?.persistentModelID) { _, _ in
+            guard let station = viewModel.currentStationToPlay else { return }
+            playerVM.playRadioStation(station, modelContext: modelContext)
+            viewModel.currentStationToPlay = nil
         }
         .sheet(isPresented: $isShowingFavorites) {
             FavoritesSheet()
