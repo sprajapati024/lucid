@@ -7,7 +7,7 @@ struct LucidApp: App {
 
     init() {
         do {
-            let schema = Schema([Song.self, Playlist.self])
+            let schema = Schema([Song.self, Playlist.self, RadioStation.self, RadioCountry.self])
             let config = ModelConfiguration(schema: schema, isStoredInMemoryOnly: false)
             modelContainer = try ModelContainer(for: schema, configurations: config)
         } catch {
