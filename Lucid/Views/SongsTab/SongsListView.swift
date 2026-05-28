@@ -27,7 +27,7 @@ struct SongsListView: View {
                 } else {
                     List {
                         ForEach(songs) { song in
-                            SongRowView(song: song)
+                            SongRowView(song: song, queue: songs)
                                 .listRowBackground(Color.lucidBlack)
                                 .listRowSeparatorTint(Color.lucidCard)
                                 .swipeActions(edge: .trailing, allowsFullSwipe: true) {
@@ -139,7 +139,6 @@ struct SongsListView: View {
 }
 
 // MARK: - Add to Playlist Menu
-@ViewBuilder
 struct AddToPlaylistMenu: View {
     let modelContext: ModelContext
     let song: Song

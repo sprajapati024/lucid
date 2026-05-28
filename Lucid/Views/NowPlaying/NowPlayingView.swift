@@ -5,6 +5,7 @@ struct NowPlayingView: View {
     @Environment(\.dismiss) private var dismiss
     @State private var isDraggingSeekBar = false
     @State private var seekPosition: Double = 0
+    @State private var showQueue = false
 
     private var song: Song? { playerVM.currentSong }
 
@@ -179,7 +180,7 @@ struct NowPlayingView: View {
 
                     // Queue button
                     Button {
-                        // show queue sheet — future
+                        showQueue = true
                     } label: {
                         Image(systemName: "list.bullet")
                             .font(.system(size: 22))
@@ -189,6 +190,10 @@ struct NowPlayingView: View {
                 .padding(.horizontal, 40)
                 .padding(.bottom, 40)
             }
+        }
+        .sheet(isPresented: $showQueue) {
+            QueueSheetView()
+                .environmentObject(playerVM)
         }
     }
 
@@ -208,5 +213,78 @@ struct NowPlayingView: View {
         guard !seconds.isNaN && !seconds.isInfinite else { return "0:00" }
         let secs = Int(seconds)
         return String(format: "%d:%02d", secs / 60, secs % 60)
+    }
+}
+
+private struct QueueSheetView: View {
+    @EnvironmentObject var playerVM: PlayerViewModel
+    @Environment(\.dismiss) private var dismiss
+
+    private var upcomingSongs: [Song] {
+        guard playerVM.currentQueueIndex + 1 < playerVM.queueItems.count else {
+            return []
+        }
+        return Array(playerVM.queueItems.dropFirst(playerVM.currentQueueIndex + 1))
+    }
+
+    var body: some View {
+        NavigationStack {
+            ZStack {
+                Color.lucidBlack.ignoresSafeArea()
+
+                if playerVM.currentSong == nil {
+                    Text("No queue")
+                        .foregroundColor(.lucidGray)
+                } else {
+                    List {
+                        if let current = playerVM.currentSong {
+                            HStack(spacing: 12) {
+                                Image(systemName: "waveform")
+                                    .foregroundColor(.lucidGreen)
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text(current.title)
+                                        .foregroundColor(.lucidWhite)
+                                        .lineLimit(1)
+                                    Text(current.artist)
+                                        .font(.system(size: 13))
+                                        .foregroundColor(.lucidGray)
+                                        .lineLimit(1)
+                                }
+                            }
+                            .listRowBackground(Color.lucidCard)
+                        }
+
+                        ForEach(upcomingSongs) { song in
+                            HStack {
+                                Text(song.title)
+                                    .foregroundColor(.lucidWhite)
+                                    .lineLimit(1)
+                                Spacer()
+                                Text(song.artist)
+                                    .foregroundColor(.lucidGray)
+                                    .lineLimit(1)
+                            }
+                            .listRowBackground(Color.lucidBlack)
+                            .contentShape(Rectangle())
+                            .onTapGesture {
+                                playerVM.playSong(song, queue: playerVM.queueItems)
+                            }
+                        }
+                    }
+                    .listStyle(.plain)
+                    .scrollContentBackground(.hidden)
+                }
+            }
+            .navigationTitle("Queue")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Button("Done") {
+                        dismiss()
+                    }
+                    .foregroundColor(.lucidGreen)
+                }
+            }
+        }
     }
 }

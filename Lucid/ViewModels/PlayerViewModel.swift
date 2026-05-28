@@ -16,6 +16,9 @@ class PlayerViewModel: ObservableObject {
     @Published var isShuffled = false
     @Published var repeatMode: RepeatMode = .off
     @Published var showNowPlaying = false
+    @Published var queueCount: Int = 0
+    @Published var currentQueueIndex: Int = 0
+    @Published var queueItems: [Song] = []
 
     private var player: AVAudioPlayer?
     private var displayLink: CADisplayLink?
@@ -113,6 +116,7 @@ class PlayerViewModel: ObservableObject {
         if let idx = self.queue.firstIndex(where: { $0.id == song.id }) {
             self.queueIndex = idx
         }
+        syncQueueDisplayState()
         loadAndPlay(song)
     }
 
@@ -140,10 +144,19 @@ class PlayerViewModel: ObservableObject {
 
     func stop() {
         player?.stop()
+        player = nil
         isPlaying = false
         currentTime = 0
+        duration = 0
         stopDisplayLink()
         clearNowPlayingInfo()
+        // Clear all playback state so mini player / Now Playing hide cleanly
+        currentSong = nil
+        queue = []
+        queueIndex = 0
+        originalQueue = []
+        showNowPlaying = false
+        syncQueueDisplayState()
     }
 
     func next() {
@@ -191,6 +204,7 @@ class PlayerViewModel: ObservableObject {
                 queueIndex = idx
             }
         }
+        syncQueueDisplayState()
     }
 
     func cycleRepeatMode() {
@@ -208,7 +222,11 @@ class PlayerViewModel: ObservableObject {
     // MARK: - Private
 
     private func loadAndPlay(_ song: Song) {
-        stop()
+        stopCurrentAudioForReload()
+        if let idx = queue.firstIndex(where: { $0.id == song.id }) {
+            queueIndex = idx
+        }
+        syncQueueDisplayState()
 
         guard let url = song.absoluteFileURL else {
             print("Could not resolve file URL for song: \(song.title)")
@@ -220,10 +238,28 @@ class PlayerViewModel: ObservableObject {
             player?.prepareToPlay()
             duration = player?.duration ?? 0
             currentSong = song
+            syncQueueDisplayState()
             play()
         } catch {
             print("Failed to load audio: \(error)")
         }
+    }
+
+    private func stopCurrentAudioForReload() {
+        player?.stop()
+        player = nil
+        isPlaying = false
+        currentTime = 0
+        duration = 0
+        stopDisplayLink()
+        clearNowPlayingInfo()
+        currentSong = nil
+    }
+
+    private func syncQueueDisplayState() {
+        queueCount = queue.count
+        currentQueueIndex = queueIndex
+        queueItems = queue
     }
 
     private func startDisplayLink() {

@@ -2,15 +2,21 @@ import SwiftUI
 
 struct SongRowView: View {
     let song: Song
+    var queue: [Song]? = nil
+
     @EnvironmentObject var playerVM: PlayerViewModel
 
     private var isCurrentlyPlaying: Bool {
         playerVM.currentSong?.id == song.id
     }
 
+    private var effectiveQueue: [Song] {
+        queue ?? [song]
+    }
+
     var body: some View {
         Button {
-            playerVM.playSong(song, queue: [song])
+            playerVM.playSong(song, queue: effectiveQueue)
         } label: {
             HStack(spacing: 12) {
                 AlbumArtView(data: song.albumArt, size: 48)

@@ -18,6 +18,16 @@ struct MiniPlayerView: View {
                 // Album art thumbnail
                 AlbumArtView(data: playerVM.currentSong?.albumArt, size: 44)
                     .clipShape(RoundedRectangle(cornerRadius: 6))
+                    .gesture(
+                        DragGesture(minimumDistance: 20)
+                            .onEnded { value in
+                                if value.translation.width > 50 {
+                                    playerVM.next()
+                                } else if value.translation.width < -50 {
+                                    playerVM.previous()
+                                }
+                            }
+                    )
 
                 // Song info
                 VStack(alignment: .leading, spacing: 2) {

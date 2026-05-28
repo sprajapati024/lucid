@@ -3,8 +3,24 @@ import SwiftData
 
 struct PlaylistDetailView: View {
     @Bindable var playlist: Playlist
+    @EnvironmentObject var playerVM: PlayerViewModel
     @Environment(\.dismiss) private var dismiss
     @State private var showAddSongs = false
+
+    private var playAllButton: some View {
+        Button {
+            if let first = playlist.songs.first {
+                playerVM.playSong(first, queue: playlist.songs)
+            }
+        } label: {
+            Image(systemName: "play.fill")
+                .font(.system(size: 20))
+                .foregroundColor(.lucidBlack)
+                .frame(width: 44, height: 44)
+                .background(Color.lucidGreen)
+                .clipShape(Circle())
+        }
+    }
 
     var body: some View {
         ZStack {
@@ -38,16 +54,7 @@ struct PlaylistDetailView: View {
                                     .foregroundColor(.lucidGray)
                             }
                             Spacer()
-                            Button {
-                                // Play all
-                            } label: {
-                                Image(systemName: "play.fill")
-                                    .font(.system(size: 20))
-                                    .foregroundColor(.lucidBlack)
-                                    .frame(width: 44, height: 44)
-                                    .background(Color.lucidGreen)
-                                    .clipShape(Circle())
-                            }
+                            playAllButton
                         }
                         .listRowBackground(Color.lucidBlack)
                     }
@@ -55,7 +62,7 @@ struct PlaylistDetailView: View {
                     // Songs
                     Section {
                         ForEach(playlist.songs) { song in
-                            SongRowView(song: song)
+                            SongRowView(song: song, queue: playlist.songs)
                                 .listRowBackground(Color.lucidBlack)
                                 .listRowSeparatorTint(Color.lucidCard)
                         }

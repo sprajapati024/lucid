@@ -6,7 +6,6 @@ final class Playlist {
     var id: UUID
     var name: String
     var createdAt: Date
-    @Relationship(deleteRule: .nullify, inverse: \Song.playlists)
     var songs: [Song]
 
     init(

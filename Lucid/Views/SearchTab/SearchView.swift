@@ -1,13 +1,16 @@
 import SwiftUI
 import SwiftData
+import Combine
 
 struct SearchView: View {
     @EnvironmentObject var playerVM: PlayerViewModel
     @Query(sort: \Song.title) private var allSongs: [Song]
     @State private var searchText = ""
+    @State private var debouncedQuery = ""
+    @State private var cancellables = Set<AnyCancellable>()
 
     private var filteredSongs: [Song] {
-        let query = searchText.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        let query = debouncedQuery.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
         if query.isEmpty {
             return []
         }
@@ -15,6 +18,17 @@ struct SearchView: View {
             song.title.lowercased().contains(query) ||
             song.artist.lowercased().contains(query)
         }
+    }
+
+    private func setupDebounce() {
+        guard cancellables.isEmpty else { return }
+        $searchText
+            .debounce(for: .milliseconds(150), scheduler: RunLoop.main)
+            .removeDuplicates()
+            .sink { query in
+                debouncedQuery = query
+            }
+            .store(in: &cancellables)
     }
 
     var body: some View {
@@ -61,7 +75,7 @@ struct SearchView: View {
                         }
                     } else {
                         List(filteredSongs) { song in
-                            SongRowView(song: song)
+                            SongRowView(song: song, queue: filteredSongs)
                                 .listRowBackground(Color.lucidBlack)
                                 .listRowSeparatorTint(Color.lucidCard)
                         }
@@ -72,6 +86,9 @@ struct SearchView: View {
                 .padding(.bottom, playerVM.currentSong != nil ? 80 : 0)
             }
             .navigationTitle("Search")
+            .onAppear {
+                setupDebounce()
+            }
         }
     }
 }
