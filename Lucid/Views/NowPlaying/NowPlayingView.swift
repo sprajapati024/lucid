@@ -167,7 +167,7 @@ struct NowPlayingView: View {
                 Spacer()
 
                 // Bottom row: heart + volume + queue
-                HStack(spacing: 32) {
+                HStack(spacing: 16) {
                     Button {
                         playerVM.toggleFavorite()
                     } label: {
@@ -176,7 +176,18 @@ struct NowPlayingView: View {
                             .foregroundColor(playerVM.currentSong?.isFavorite == true ? .lucidGreen : .lucidGray)
                     }
 
-                    Spacer()
+                    HStack(spacing: 8) {
+                        Image(systemName: "speaker.fill")
+                            .font(.system(size: 12))
+                            .foregroundColor(.lucidGray)
+
+                        VolumeSliderView()
+                            .frame(height: 32)
+
+                        Image(systemName: "speaker.wave.3.fill")
+                            .font(.system(size: 12))
+                            .foregroundColor(.lucidGray)
+                    }
 
                     // Queue button
                     Button {

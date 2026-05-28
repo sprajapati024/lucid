@@ -1,4 +1,5 @@
 import SwiftUI
+import Combine
 
 struct CreatePlaylistSheet: View {
     @Environment(\.dismiss) private var dismiss
@@ -56,11 +57,42 @@ struct AddSongsToPlaylistSheet: View {
     @Bindable var playlist: Playlist
     @Query(sort: \Song.title) private var allSongs: [Song]
     @State private var selectedSongIDs: Set<UUID> = []
+    @State private var searchText = ""
+    @State private var debouncedQuery = ""
+    @State private var cancellables = Set<AnyCancellable>()
 
     var availableSongs: [Song] {
         allSongs.filter { song in
             !playlist.songs.contains(where: { $0.id == song.id })
         }
+    }
+
+    private var filteredSongs: [Song] {
+        let query = debouncedQuery.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        guard !query.isEmpty else { return availableSongs }
+
+        let matchingSongs = availableSongs.filter { song in
+            song.title.lowercased().contains(query) ||
+            song.artist.lowercased().contains(query)
+        }
+        let selectedSongs = availableSongs.filter { selectedSongIDs.contains($0.id) }
+
+        return (matchingSongs + selectedSongs).reduce(into: [Song]()) { result, song in
+            if !result.contains(where: { $0.id == song.id }) {
+                result.append(song)
+            }
+        }
+    }
+
+    private func setupDebounce() {
+        guard cancellables.isEmpty else { return }
+        $searchText
+            .debounce(for: .milliseconds(150), scheduler: RunLoop.main)
+            .removeDuplicates()
+            .sink { query in
+                debouncedQuery = query
+            }
+            .store(in: &cancellables)
     }
 
     var body: some View {
@@ -78,30 +110,58 @@ struct AddSongsToPlaylistSheet: View {
                             .foregroundColor(.lucidGray)
                     }
                 } else {
-                    List(availableSongs, id: \.id) { song in
-                        Button {
-                            if selectedSongIDs.contains(song.id) {
-                                selectedSongIDs.remove(song.id)
-                            } else {
-                                selectedSongIDs.insert(song.id)
-                            }
-                        } label: {
-                            HStack {
-                                SongRowView(song: song)
-                                Spacer()
-                                if selectedSongIDs.contains(song.id) {
-                                    Image(systemName: "checkmark.circle.fill")
-                                        .foregroundColor(.lucidGreen)
-                                } else {
-                                    Image(systemName: "circle")
-                                        .foregroundColor(.lucidGray)
-                                }
-                            }
+                    VStack(spacing: 0) {
+                        HStack {
+                            Image(systemName: "magnifyingglass")
+                                .foregroundColor(.lucidGray)
+                            TextField("Search songs...", text: $searchText)
+                                .foregroundColor(.lucidWhite)
+                                .autocorrectionDisabled()
                         }
-                        .listRowBackground(Color.lucidBlack)
+                        .padding(12)
+                        .background(Color.lucidCard)
+                        .clipShape(RoundedRectangle(cornerRadius: 12))
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 8)
+
+                        if filteredSongs.isEmpty {
+                            VStack(spacing: 12) {
+                                Spacer()
+                                Image(systemName: "music.note")
+                                    .font(.system(size: 48))
+                                    .foregroundColor(.lucidGray.opacity(0.5))
+                                Text("No results")
+                                    .font(.system(size: 16))
+                                    .foregroundColor(.lucidGray)
+                                Spacer()
+                            }
+                        } else {
+                            List(filteredSongs, id: \.id) { song in
+                                Button {
+                                    if selectedSongIDs.contains(song.id) {
+                                        selectedSongIDs.remove(song.id)
+                                    } else {
+                                        selectedSongIDs.insert(song.id)
+                                    }
+                                } label: {
+                                    HStack {
+                                        SongRowView(song: song, showsContextMenu: false)
+                                        Spacer()
+                                        if selectedSongIDs.contains(song.id) {
+                                            Image(systemName: "checkmark.circle.fill")
+                                                .foregroundColor(.lucidGreen)
+                                        } else {
+                                            Image(systemName: "circle")
+                                                .foregroundColor(.lucidGray)
+                                        }
+                                    }
+                                }
+                                .listRowBackground(Color.lucidBlack)
+                            }
+                            .listStyle(.plain)
+                            .scrollContentBackground(.hidden)
+                        }
                     }
-                    .listStyle(.plain)
-                    .scrollContentBackground(.hidden)
                 }
             }
             .navigationTitle("Add Songs")
@@ -120,6 +180,9 @@ struct AddSongsToPlaylistSheet: View {
                     .fontWeight(.semibold)
                     .disabled(selectedSongIDs.isEmpty)
                 }
+            }
+            .onAppear {
+                setupDebounce()
             }
         }
     }

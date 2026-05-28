@@ -120,6 +120,22 @@ class PlayerViewModel: ObservableObject {
         loadAndPlay(song)
     }
 
+    func playNext(_ song: Song) {
+        guard let currentSong else {
+            playSong(song, queue: [song])
+            return
+        }
+
+        queue.removeAll { $0.id == song.id }
+        if let currentIndex = queue.firstIndex(where: { $0.id == currentSong.id }) {
+            queueIndex = currentIndex
+        }
+        let insertionIndex = min(queueIndex + 1, queue.count)
+        queue.insert(song, at: insertionIndex)
+        originalQueue = queue
+        syncQueueDisplayState()
+    }
+
     func togglePlayPause() {
         if isPlaying {
             pause()

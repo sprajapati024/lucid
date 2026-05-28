@@ -3,6 +3,7 @@ import SwiftUI
 struct SongRowView: View {
     let song: Song
     var queue: [Song]? = nil
+    var showsContextMenu = true
 
     @EnvironmentObject var playerVM: PlayerViewModel
 
@@ -14,7 +15,34 @@ struct SongRowView: View {
         queue ?? [song]
     }
 
+    @ViewBuilder
     var body: some View {
+        if showsContextMenu {
+            rowButton.contextMenu {
+                Button {
+                    playerVM.playSong(song, queue: effectiveQueue)
+                } label: {
+                    Label("Play", systemImage: "play.fill")
+                }
+
+                Button {
+                    playerVM.playNext(song)
+                } label: {
+                    Label("Play Next", systemImage: "text.line.first.and.arrowtriangle.forward")
+                }
+
+                Button {
+                    song.isFavorite.toggle()
+                } label: {
+                    Label(song.isFavorite ? "Unfavorite" : "Favorite", systemImage: song.isFavorite ? "heart.fill" : "heart")
+                }
+            }
+        } else {
+            rowButton
+        }
+    }
+
+    private var rowButton: some View {
         Button {
             playerVM.playSong(song, queue: effectiveQueue)
         } label: {
